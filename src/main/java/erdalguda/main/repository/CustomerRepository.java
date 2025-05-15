@@ -34,5 +34,5 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
     List<Customer> findByAddressContainingIgnoreCase(String addressKeyword);
 
     // OCR text search
-    List<Customer> findByOcrMeasurementTextContainingIgnoreCase(String keyword);
+
 }

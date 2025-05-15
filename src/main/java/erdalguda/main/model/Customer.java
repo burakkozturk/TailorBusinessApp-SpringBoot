@@ -1,6 +1,7 @@
 package erdalguda.main.model;
 
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -21,5 +22,8 @@ public class Customer {
     private Double height; // cm
     private Double weight; // kg
 
-    private String ocrMeasurementText; // OCR sonucu düz metin olarak tutulur
+
+    @OneToOne(mappedBy = "customer", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @JsonInclude(JsonInclude.Include.NON_NULL) // Jackson varsa
+    private Measurement measurement;
 }

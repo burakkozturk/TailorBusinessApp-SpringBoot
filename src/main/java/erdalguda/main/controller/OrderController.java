@@ -1,26 +1,21 @@
 package erdalguda.main.controller;
 
-import erdalguda.main.dto.FabricSummary;
-import erdalguda.main.dto.OrderRequest;
-import erdalguda.main.dto.OrderResponse;
-import erdalguda.main.dto.UpdateOrderRequest;
+import erdalguda.main.model.Order;
+import erdalguda.main.model.Order.OrderStatus;
 import erdalguda.main.model.Customer;
 import erdalguda.main.model.Fabric;
-import erdalguda.main.model.Order;
-import erdalguda.main.model.PatternTemplate;
+import erdalguda.main.repository.OrderRepository;
 import erdalguda.main.repository.CustomerRepository;
 import erdalguda.main.repository.FabricRepository;
-import erdalguda.main.repository.OrderRepository;
-import erdalguda.main.repository.PatternTemplateRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -29,133 +24,143 @@ public class OrderController {
 
     private final OrderRepository orderRepo;
     private final CustomerRepository customerRepo;
-    private final PatternTemplateRepository patternTemplateRepo;
     private final FabricRepository fabricRepo;
 
-    // OCR'dan ölçü çekme metodu
-    private Double extractValueFromText(String text, String keyword) {
-        try {
-            Pattern pattern = Pattern.compile(keyword + "\\D*(\\d+(\\.\\d+)?)");
-            Matcher matcher = pattern.matcher(text);
-            if (matcher.find()) {
-                return Double.parseDouble(matcher.group(1));
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return 0.0;
-    }
-
-    // Sipariş oluşturma
     @PostMapping
-    public ResponseEntity<?> createOrder(@RequestBody OrderRequest request) {
-        Optional<Customer> customerOpt = customerRepo.findById(request.getCustomerId());
+    public ResponseEntity<?> createOrder(@RequestBody Order order) {
+        // Müşteri kontrolü
+        if (order.getCustomer() == null || order.getCustomer().getId() == null) {
+            return ResponseEntity.badRequest().body("Müşteri bilgisi gerekli");
+        }
+
+        Optional<Customer> customerOpt = customerRepo.findById(order.getCustomer().getId());
         if (customerOpt.isEmpty()) {
-            return ResponseEntity.badRequest().body("Customer not found");
+            return ResponseEntity.badRequest().body("Müşteri bulunamadı");
         }
 
-        Customer customer = customerOpt.get();
-
-        Order order = new Order();
-        order.setCustomer(customer);
-        order.setProductType(request.getProductType());
-        order.setFitType(request.getFitType());
-        order.setOrderDate(LocalDate.now());
-        order.setStatus(request.getStatus() != null ? request.getStatus() : "Hazırlanıyor");
-        order.setSelectedFabricId(request.getSelectedFabricId());
-        order.setNotes(request.getNotes());
-        orderRepo.save(order);
-
-        // Ölçüleri OCR metninden çıkar
-        Double chest = extractValueFromText(customer.getOcrMeasurementText(), "Göğüs");
-        Double waist = extractValueFromText(customer.getOcrMeasurementText(), "Bel");
-
-        // Şablon eşleşmesi
-        List<PatternTemplate> matched = patternTemplateRepo
-                .findByProductTypeAndFitTypeAndMinChestLessThanEqualAndMaxChestGreaterThanEqualAndMinWaistLessThanEqualAndMaxWaistGreaterThanEqual(
-                        request.getProductType(), request.getFitType(),
-                        chest, chest,
-                        waist, waist
-                );
-
-        String suggested = matched.isEmpty() ? "Uygun şablon bulunamadı" : matched.get(0).getName();
-
-        // Kumaş bilgisi
-        FabricSummary fabricSummary = null;
-        if (request.getSelectedFabricId() != null) {
-            Optional<Fabric> fabricOpt = fabricRepo.findById(request.getSelectedFabricId());
-            if (fabricOpt.isPresent()) {
-                Fabric fabric = fabricOpt.get();
-                fabricSummary = new FabricSummary(
-                        fabric.getId(),
-                        fabric.getName(),
-                        fabric.getTexture(),
-                        fabric.getDescription(),
-                        fabric.getImageUrl()
-                );
+        // Kumaş kontrolü
+        if (order.getFabric() != null && order.getFabric().getId() != null) {
+            Optional<Fabric> fabricOpt = fabricRepo.findById(order.getFabric().getId());
+            if (fabricOpt.isEmpty()) {
+                return ResponseEntity.badRequest().body("Seçilen kumaş bulunamadı");
             }
+            order.setFabric(fabricOpt.get());
         }
 
-        // Yanıt oluştur
-        OrderResponse response = new OrderResponse(
-                order.getId(),
-                order.getProductType(),
-                order.getFitType(),
-                order.getOrderDate(),
-                customer.getId(),
-                customer.getFirstName() + " " + customer.getLastName(),
-                customer.getHeight(),
-                customer.getWeight(),
-                customer.getOcrMeasurementText(),
-                suggested,
-                order.getStatus(),
-                order.getSelectedFabricId(),
-                order.getNotes(),
-                fabricSummary
-        );
-
-        return ResponseEntity.ok(response);
+        order.setCustomer(customerOpt.get());
+        Order saved = orderRepo.save(order);
+        return ResponseEntity.ok(saved);
     }
 
-    // Müşteriye ait tüm siparişler
-    @GetMapping("/by-customer/{customerId}")
-    public List<Order> getOrdersByCustomer(@PathVariable Long customerId) {
-        return orderRepo.findByCustomerId(customerId);
-    }
-
-    // Tüm siparişler
     @GetMapping
-    public List<Order> getAllOrders() {
-        return orderRepo.findAll();
+    public ResponseEntity<List<Order>> getAllOrders() {
+        return ResponseEntity.ok(orderRepo.findAll());
     }
 
-    // Sipariş silme
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteOrder(@PathVariable Long id) {
-        orderRepo.deleteById(id);
-        return ResponseEntity.noContent().build();
+    @GetMapping("/{id}")
+    public ResponseEntity<?> getOrderById(@PathVariable Long id) {
+        return orderRepo.findById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
-    @PatchMapping("/{id}")
-    public ResponseEntity<?> updateOrder(@PathVariable Long id, @RequestBody UpdateOrderRequest request) {
+    @GetMapping("/by-customer/{customerId}")
+    public ResponseEntity<List<Order>> getOrdersByCustomer(@PathVariable Long customerId) {
+        return ResponseEntity.ok(orderRepo.findByCustomerId(customerId));
+    }
+
+    @GetMapping("/active/by-customer/{customerId}")
+    public ResponseEntity<List<Order>> getActiveOrdersByCustomer(@PathVariable Long customerId) {
+        return ResponseEntity.ok(orderRepo.findActiveOrdersByCustomer(customerId));
+    }
+
+    @GetMapping("/in-progress")
+    public ResponseEntity<List<Order>> getInProgressOrders() {
+        return ResponseEntity.ok(orderRepo.findInProgressOrders());
+    }
+
+    @GetMapping("/by-status/{status}")
+    public ResponseEntity<List<Order>> getOrdersByStatus(@PathVariable OrderStatus status) {
+        return ResponseEntity.ok(orderRepo.findByStatus(status));
+    }
+
+    @GetMapping("/by-date-range")
+    public ResponseEntity<List<Order>> getOrdersByDateRange(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return ResponseEntity.ok(orderRepo.findByOrderDateBetween(startDate, endDate));
+    }
+
+    @GetMapping("/statistics/by-product-type")
+    public ResponseEntity<List<Object[]>> getProductTypeStatistics(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        return ResponseEntity.ok(orderRepo.getProductTypeStatistics(startDate, endDate));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateOrder(@PathVariable Long id, @RequestBody Order updated) {
+        Optional<Order> orderOpt = orderRepo.findById(id);
+        if (orderOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Order existing = orderOpt.get();
+
+        // Temel bilgileri güncelle
+        existing.setProductType(updated.getProductType());
+        existing.setFitType(updated.getFitType());
+        existing.setStatus(updated.getStatus());
+        existing.setNotes(updated.getNotes());
+        existing.setEstimatedDeliveryDate(updated.getEstimatedDeliveryDate());
+        existing.setDeliveryDate(updated.getDeliveryDate());
+        existing.setTotalPrice(updated.getTotalPrice());
+        existing.setPatternFilePath(updated.getPatternFilePath());
+        existing.setPatternFileType(updated.getPatternFileType());
+
+        // Kumaş güncellemesi
+        if (updated.getFabric() != null && updated.getFabric().getId() != null) {
+            Optional<Fabric> fabricOpt = fabricRepo.findById(updated.getFabric().getId());
+            fabricOpt.ifPresent(existing::setFabric);
+        }
+
+        Order saved = orderRepo.save(existing);
+        return ResponseEntity.ok(saved);
+    }
+
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<?> updateOrderStatus(
+            @PathVariable Long id,
+            @RequestBody Map<String, OrderStatus> statusUpdate) {
+
+        OrderStatus newStatus = statusUpdate.get("status");
+        if (newStatus == null) {
+            return ResponseEntity.badRequest().body("Yeni durum belirtilmedi");
+        }
+
         Optional<Order> orderOpt = orderRepo.findById(id);
         if (orderOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
 
         Order order = orderOpt.get();
+        order.setStatus(newStatus);
 
-        if (request.getStatus() != null) order.setStatus(request.getStatus());
-        if (request.getNotes() != null) order.setNotes(request.getNotes());
-        if (request.getSelectedFabricId() != null) order.setSelectedFabricId(request.getSelectedFabricId());
+        // Eğer durum DELIVERED ise, teslim tarihini güncelle
+        if (newStatus == OrderStatus.DELIVERED) {
+            order.setDeliveryDate(LocalDate.now());
+        }
 
-        orderRepo.save(order);
-        return ResponseEntity.ok("Order updated");
+        Order saved = orderRepo.save(order);
+        return ResponseEntity.ok(saved);
     }
 
-    @GetMapping("/status/{status}")
-    public List<Order> getOrdersByStatus(@PathVariable String status) {
-        return orderRepo.findByStatusIgnoreCase(status);
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteOrder(@PathVariable Long id) {
+        if (!orderRepo.existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+        orderRepo.deleteById(id);
+        return ResponseEntity.ok().build();
     }
-
 }

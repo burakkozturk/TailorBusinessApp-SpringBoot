@@ -1,14 +1,13 @@
-// CustomerResponse.java
 package erdalguda.main.dto;
 
+import erdalguda.main.dto.MeasurementResponse;
 import erdalguda.main.model.Customer;
-import erdalguda.main.model.Measurement;
 import lombok.Getter;
 import lombok.Setter;
 
 @Getter
 @Setter
-public class CustomerResponse {
+public class CustomerShortResponse {
     private Long id;
     private String firstName;
     private String lastName;
@@ -18,7 +17,7 @@ public class CustomerResponse {
     private Double weight;
     private MeasurementResponse measurement;
 
-    public CustomerResponse(Customer c) {
+    public CustomerShortResponse(Customer c) {
         this.id = c.getId();
         this.firstName = c.getFirstName();
         this.lastName = c.getLastName();
@@ -26,7 +25,7 @@ public class CustomerResponse {
         this.phone = c.getPhone();
         this.height = c.getHeight();
         this.weight = c.getWeight();
-        // DİKKAT: Burada yeni MeasurementResponse kullanıyoruz!
+        // MeasurementResponse ile döngüyü kırıyoruz!
         this.measurement = c.getMeasurement() != null ? new MeasurementResponse(c.getMeasurement()) : null;
     }
 }

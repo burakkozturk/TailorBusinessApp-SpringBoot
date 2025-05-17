@@ -1,5 +1,6 @@
 package erdalguda.main.controller;
 
+import erdalguda.main.dto.OrderResponse;
 import erdalguda.main.model.Order;
 import erdalguda.main.model.Order.OrderStatus;
 import erdalguda.main.model.Customer;
@@ -53,8 +54,12 @@ public class OrderController {
     }
 
     @GetMapping
-    public ResponseEntity<List<Order>> getAllOrders() {
-        return ResponseEntity.ok(orderRepo.findAll());
+    public ResponseEntity<List<OrderResponse>> getAllOrders() {
+        List<Order> orders = orderRepo.findAll();
+        List<OrderResponse> response = orders.stream()
+                .map(OrderResponse::new)
+                .toList();
+        return ResponseEntity.ok(response);
     }
 
     @GetMapping("/{id}")

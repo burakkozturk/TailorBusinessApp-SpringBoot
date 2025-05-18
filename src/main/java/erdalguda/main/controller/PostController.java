@@ -1,15 +1,20 @@
 package erdalguda.main.controller;
 
+import erdalguda.main.dto.PostDto;
 import erdalguda.main.model.Post;
+import erdalguda.main.model.Category;
 import erdalguda.main.repository.PostRepository;
 import erdalguda.main.repository.CategoryRepository;
+import erdalguda.main.util.Mapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/posts")
@@ -17,17 +22,22 @@ public class PostController {
 
     private final PostRepository postRepository;
     private final CategoryRepository categoryRepository;
+    private final Mapper mapper;
 
     @Autowired
-    public PostController(PostRepository postRepository, CategoryRepository categoryRepository) {
+    public PostController(PostRepository postRepository, CategoryRepository categoryRepository, Mapper mapper) {
         this.postRepository = postRepository;
         this.categoryRepository = categoryRepository;
+        this.mapper = mapper;
     }
 
     @GetMapping
-    public ResponseEntity<List<Post>> getAllPosts() {
+    public ResponseEntity<List<PostDto>> getAllPosts() {
         List<Post> posts = postRepository.findAll();
-        return new ResponseEntity<>(posts, HttpStatus.OK);
+        List<PostDto> postDtos = posts.stream()
+                .map(mapper::toPostDto)
+                .collect(Collectors.toList());
+        return new ResponseEntity<>(postDtos, HttpStatus.OK);
     }
 
     @GetMapping("/{id}")
@@ -42,38 +52,68 @@ public class PostController {
         if (!categoryRepository.existsById(categoryId)) {
             return new ResponseEntity<>(HttpStatus.NOT_FOUND);
         }
-
-        // categoryId ile ilgili postları getirme işlemi
-        // PostRepository'de bu metodu eklemeniz gerekebilir
         List<Post> posts = postRepository.findByCategoryId(categoryId);
         return new ResponseEntity<>(posts, HttpStatus.OK);
     }
 
     @PostMapping
-    public ResponseEntity<Post> createPost(@RequestBody Post post) {
-        Post savedPost = postRepository.save(post);
-        return new ResponseEntity<>(savedPost, HttpStatus.CREATED);
+    public ResponseEntity<?> createPost(@RequestBody Post post) {
+        try {
+            // Kategorileri kontrol et ve ayarla
+            if (post.getCategories() != null && !post.getCategories().isEmpty()) {
+                List<Category> categories = new ArrayList<>();
+
+                for (Category category : post.getCategories()) {
+                    Optional<Category> existingCategory = categoryRepository.findById(category.getId());
+                    if (existingCategory.isPresent()) {
+                        categories.add(existingCategory.get());
+                    }
+                }
+
+                post.setCategories(categories);
+            }
+
+            Post savedPost = postRepository.save(post);
+            return new ResponseEntity<>(savedPost, HttpStatus.CREATED);
+        } catch (Exception e) {
+            return new ResponseEntity<>("Post oluşturulurken hata: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Post> updatePost(@PathVariable Long id, @RequestBody Post postDetails) {
-        Optional<Post> post = postRepository.findById(id);
+    public ResponseEntity<?> updatePost(@PathVariable Long id, @RequestBody Post postDetails) {
+        try {
+            Optional<Post> postOptional = postRepository.findById(id);
 
-        if (post.isPresent()) {
-            Post existingPost = post.get();
-            existingPost.setTitle(postDetails.getTitle());
-            existingPost.setContent(postDetails.getContent());
+            if (postOptional.isPresent()) {
+                Post existingPost = postOptional.get();
+                existingPost.setTitle(postDetails.getTitle());
+                existingPost.setContent(postDetails.getContent());
+                existingPost.setUrlSlug(postDetails.getUrlSlug());
+                existingPost.setFeaturedImage(postDetails.getFeaturedImage());
+                existingPost.setPublished(postDetails.getPublished());
 
-            // Diğer alanları da modelinize göre güncelleyin
-            // existingPost.setAuthor(postDetails.getAuthor());
-            // existingPost.setCategories(postDetails.getCategories());
-            // existingPost.setPublished(postDetails.getPublished());
-            // existingPost.setFeaturedImage(postDetails.getFeaturedImage());
+                // Kategorileri güncelle
+                if (postDetails.getCategories() != null) {
+                    List<Category> categories = new ArrayList<>();
 
-            Post updatedPost = postRepository.save(existingPost);
-            return new ResponseEntity<>(updatedPost, HttpStatus.OK);
-        } else {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+                    for (Category category : postDetails.getCategories()) {
+                        Optional<Category> existingCategory = categoryRepository.findById(category.getId());
+                        if (existingCategory.isPresent()) {
+                            categories.add(existingCategory.get());
+                        }
+                    }
+
+                    existingPost.setCategories(categories);
+                }
+
+                Post updatedPost = postRepository.save(existingPost);
+                return new ResponseEntity<>(updatedPost, HttpStatus.OK);
+            } else {
+                return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+            }
+        } catch (Exception e) {
+            return new ResponseEntity<>("Post güncellenirken hata: " + e.getMessage(), HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
@@ -89,7 +129,6 @@ public class PostController {
 
     @GetMapping("/search")
     public ResponseEntity<List<Post>> searchPosts(@RequestParam String keyword) {
-        // PostRepository'de bu metodu eklemeniz gerekebilir
         List<Post> posts = postRepository.findByTitleContainingOrContentContaining(keyword, keyword);
         return new ResponseEntity<>(posts, HttpStatus.OK);
     }

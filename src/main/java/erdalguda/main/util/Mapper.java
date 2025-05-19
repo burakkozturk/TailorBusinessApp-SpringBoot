@@ -15,7 +15,6 @@ public class Mapper {
         PostDto dto = new PostDto();
         dto.setId(post.getId());
         dto.setTitle(post.getTitle());
-        dto.setUrlSlug(post.getUrlSlug());
         dto.setContent(post.getContent());
         dto.setFeaturedImage(post.getFeaturedImage());
         dto.setCreatedAt(post.getCreatedAt());
@@ -35,7 +34,6 @@ public class Mapper {
         CategoryDto dto = new CategoryDto();
         dto.setId(category.getId());
         dto.setName(category.getName());
-        dto.setUrlSlug(category.getUrlSlug());
         dto.setDescription(category.getDescription());
         return dto;
     }

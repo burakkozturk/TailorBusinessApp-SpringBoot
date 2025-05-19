@@ -24,7 +24,7 @@ public interface PostRepository extends JpaRepository<Post, Long> {
 
     Page<Post> findByPublishedTrueOrderByCreatedAtDesc(Pageable pageable);
 
-    @Query("SELECT p FROM Post p JOIN p.categories c WHERE c.urlSlug = :categorySlug AND p.published = true")
+    @Query("SELECT p FROM Post p JOIN p.categories c WHERE c.slug = :categorySlug AND p.published = true")
     Page<Post> findByCategory(String categorySlug, Pageable pageable);
 
     @Query("SELECT p FROM Post p WHERE p.title LIKE %:keyword% OR p.content LIKE %:keyword%")

@@ -1,34 +1,37 @@
 package erdalguda.main.model;
 
-import com.fasterxml.jackson.annotation.JsonIdentityInfo;
-import com.fasterxml.jackson.annotation.ObjectIdGenerators;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
-@Data
-@NoArgsConstructor
 @Entity
-@Table(name = "categories")
-@JsonIdentityInfo(generator = ObjectIdGenerators.PropertyGenerator.class, property = "id")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 public class Category {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "name", nullable = false, unique = true)
+    @Column(nullable = false, unique = true)
     private String name;
 
-    @Column(name = "url_slug", nullable = false, unique = true)
-    private String urlSlug;
+    @Column(nullable = false, unique = true)
+    private String slug;
 
-    @Column(name = "description")
     private String description;
 
-    @ManyToMany(mappedBy = "categories", fetch = FetchType.LAZY)
-    private List<Post> posts = new ArrayList<>();
-}
+    private LocalDateTime createdAt = LocalDateTime.now();
+
+    @ManyToMany(mappedBy = "categories")
+    @JsonIgnore
+    private Set<Blog> blogs = new HashSet<>();
+} 

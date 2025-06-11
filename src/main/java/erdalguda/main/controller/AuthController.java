@@ -3,6 +3,7 @@ package erdalguda.main.controller;
 import erdalguda.main.model.Admin;
 import erdalguda.main.model.Admin.Role;
 import erdalguda.main.repository.AdminRepository;
+import erdalguda.main.service.AdminService;
 import erdalguda.main.service.JwtService;
 import jakarta.annotation.PostConstruct;
 import lombok.Getter;
@@ -34,6 +35,9 @@ public class AuthController {
 
     @Autowired
     private JwtService jwtService;
+    
+    @Autowired
+    private AdminService adminService;
 
     /**
      * Uygulama başlangıcında varsayılan admin hesabı oluşturur
@@ -114,6 +118,30 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Geçersiz kullanıcı adı veya şifre");
     }
     
+    /**
+     * Şifre değiştirme endpoint'i
+     * Mevcut şifre ve yeni şifre gereklidir
+     */
+    @PostMapping("/change-password")
+    public ResponseEntity<?> changePassword(@RequestBody ChangePasswordRequest request) {
+        logger.info("Şifre değiştirme isteği: {}", request.getUsername());
+        
+        // Mevcut şifreyi doğrula
+        if (!adminService.verifyCurrentPassword(request.getUsername(), request.getCurrentPassword())) {
+            logger.warn("Kullanıcı {} için geçersiz mevcut şifre", request.getUsername());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Mevcut şifre hatalı");
+        }
+        
+        // Şifreyi değiştir
+        if (adminService.changePassword(request.getUsername(), request.getNewPassword())) {
+            logger.info("Kullanıcı {} için şifre başarıyla değiştirildi", request.getUsername());
+            return ResponseEntity.ok(Map.of("message", "Şifre başarıyla değiştirildi"));
+        } else {
+            logger.error("Kullanıcı {} için şifre değiştirme başarısız", request.getUsername());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Şifre değiştirme işlemi başarısız");
+        }
+    }
+    
     @GetMapping("/test-auth")
     public ResponseEntity<?> testAuth() {
         logger.info("Kimlik doğrulama test endpointi çağrıldı");
@@ -190,6 +218,13 @@ public class AuthController {
     static class CreateManagerRequest {
         private String username;
         private String password;
+    }
+    
+    @Getter @Setter
+    static class ChangePasswordRequest {
+        private String username;
+        private String currentPassword;
+        private String newPassword;
     }
     
     @Getter @Setter

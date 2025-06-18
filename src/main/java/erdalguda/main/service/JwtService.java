@@ -72,14 +72,20 @@ public class JwtService {
             
             List<SimpleGrantedAuthority> authorities = new ArrayList<>();
             
-            // Temel rol yetkisi (ROLE_ADMIN veya ROLE_MANAGER)
+            // Temel rol yetkisi
             SimpleGrantedAuthority roleAuthority = new SimpleGrantedAuthority("ROLE_" + role.name());
             authorities.add(roleAuthority);
             
-            // ADMIN rolü aynı zamanda MANAGER rolünün tüm yetkilerine sahiptir (role inheritance)
+            // Rol hiyerarşisi - ADMIN en üst seviye, tüm yetkilere sahip
             if (role == Role.ADMIN) {
-                authorities.add(new SimpleGrantedAuthority("ROLE_MANAGER"));
+                authorities.add(new SimpleGrantedAuthority("ROLE_USTA"));
+                authorities.add(new SimpleGrantedAuthority("ROLE_MUHASEBECI"));
             }
+            // USTA orta seviye, MUHASEBECI yetkilerine de sahip
+            else if (role == Role.USTA) {
+                authorities.add(new SimpleGrantedAuthority("ROLE_MUHASEBECI"));
+            }
+            // MUHASEBECI en alt seviye, sadece kendi yetkilerine sahip
             
             logger.info("Token'dan çıkarılan yetkiler: {}", authorities);
             return authorities;
@@ -89,14 +95,12 @@ public class JwtService {
         }
     }
 
-    public boolean isTokenValid(String token, String expectedUsername) {
+    public boolean isTokenValid(String token, String username) {
         try {
-            String username = extractUsername(token);
-            boolean isValid = username != null && username.equals(expectedUsername) && !isTokenExpired(token);
-            logger.debug("Token geçerlilik kontrolü: {}", isValid);
-            return isValid;
-        } catch (JwtException e) {
-            logger.warn("Token geçersiz: {}", e.getMessage());
+            final String extractedUsername = extractUsername(token);
+            return extractedUsername != null && extractedUsername.equals(username) && !isTokenExpired(token);
+        } catch (Exception e) {
+            logger.error("Token geçerlilik kontrolü hatası: {}", e.getMessage());
             return false;
         }
     }
@@ -105,13 +109,9 @@ public class JwtService {
         try {
             Date expiration = Jwts.parserBuilder().setSigningKey(getSigningKey()).build()
                 .parseClaimsJws(token).getBody().getExpiration();
-            boolean isExpired = expiration.before(new Date());
-            if (isExpired) {
-                logger.warn("Token süresi dolmuş: {}", expiration);
-            }
-            return isExpired;
+            return expiration.before(new Date());
         } catch (Exception e) {
-            logger.error("Token süre kontrolünde hata: {}", e.getMessage());
+            logger.error("Token süre kontrolü hatası: {}", e.getMessage());
             return true;
         }
     }

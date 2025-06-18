@@ -28,41 +28,68 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        logger.info("SecurityConfig yapılandırması başlatılıyor - TÜM GÜVENLİK DEVRE DIŞI (TEST AMAÇLI)");
+        logger.info("SecurityConfig yapılandırması başlatılıyor - 3 ROL SİSTEMİ");
         
         http.cors(Customizer.withDefaults())
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> {
                 try {
-                    // TÜM ENDPOİNTLERE ERİŞİME İZİN VER - TEST AMAÇLI
-                    auth.anyRequest().permitAll();
-                    logger.info("TÜM GÜVENLİK KURALLARI DEVRE DIŞI - Herhangi bir yetkilendirme kontrolü olmayacak!");
+                    auth
+                        // Genel erişim - login, test endpoint'leri
+                        .requestMatchers("/auth/login", "/auth/register", "/auth/change-password").permitAll()
+                        
+                        // Sadece ADMIN erişimi
+                        .requestMatchers("/auth/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/fabrics/**").hasRole("ADMIN")
+                        .requestMatchers("/api/templates/**").hasRole("ADMIN")
+                        .requestMatchers("/api/messages/**").hasRole("ADMIN")
+                        .requestMatchers("/api/blog/**").hasRole("ADMIN")
+                        .requestMatchers("/api/categories/**").hasRole("ADMIN")
+                        
+                        // USTA erişimi (ADMIN + USTA)
+                        .requestMatchers("/api/usta/**").hasAnyRole("ADMIN", "USTA")
+                        
+                        // MUHASEBECI erişimi (ADMIN + USTA + MUHASEBECI)
+                        .requestMatchers("/api/customers/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")
+                        .requestMatchers("/api/orders/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")
+                        .requestMatchers("/api/muhasebeci/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")
+                        
+                        // Genel ayarlar - tüm roller erişebilir
+                        .requestMatchers("/api/settings/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")
+                        
+                        // Diğer tüm istekler kimlik doğrulama gerektirir
+                        .anyRequest().authenticated();
+                        
+                    logger.info("Yetkilendirme kuralları yapılandırıldı:");
+                    logger.info("- ADMIN: Tüm modüller");
+                    logger.info("- USTA: Müşteriler, Siparişler, Kumaşlar, Şablonlar");
+                    logger.info("- MUHASEBECI: Müşteriler, Siparişler");
                 } catch (Exception e) {
                     logger.error("SecurityConfig yapılandırma hatası: {}", e.getMessage(), e);
                     throw e;
                 }
             })
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
-            // JWT Filtresi de devre dışı - tamamen tüm güvenlik kontrolünü kaldırdık
-            // .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
-        logger.info("SecurityFilterChain yapılandırması tamamlandı - TÜM GÜVENLİK DEVRE DIŞI");
+        logger.info("SecurityFilterChain yapılandırması tamamlandı - JWT Filter aktif");
         return http.build();
     }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(Arrays.asList("*")); // Tüm originlere izin ver
+        config.setAllowedOrigins(Arrays.asList("http://localhost:3000", "https://erdalguda.netlify.app")); // Belirli originler
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(Arrays.asList("*")); // Tüm headerlara izin ver
+        config.setAllowedHeaders(Arrays.asList("*"));
         config.setExposedHeaders(Arrays.asList("Authorization"));
-        config.setAllowCredentials(false); // Test için false
+        config.setAllowCredentials(true);
         config.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
-        logger.info("CORS yapılandırması tamamlandı - Tüm origins için izin verildi");
+        logger.info("CORS yapılandırması tamamlandı - Belirli originler için izin verildi");
         return source;
     }
 

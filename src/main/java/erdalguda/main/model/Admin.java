@@ -16,10 +16,11 @@ public class Admin {
     private String password;
     
     @Enumerated(EnumType.STRING)
-    private Role role = Role.MANAGER; // Varsayılan olarak MANAGER
+    private Role role = Role.USTA; // Varsayılan olarak USTA
     
     public enum Role {
-        ADMIN,     // Tam yetki
-        MANAGER    // Sınırlı yetki
+        ADMIN,        // Tam yetki - Tüm modüllere erişim
+        USTA,         // Orta yetki - Müşteriler, Siparişler, Kumaşlar, Şablonlar
+        MUHASEBECI    // Sınırlı yetki - Sadece Müşteriler ve Siparişler
     }
 }

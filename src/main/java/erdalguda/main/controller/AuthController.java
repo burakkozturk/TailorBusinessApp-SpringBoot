@@ -2,7 +2,9 @@ package erdalguda.main.controller;
 
 import erdalguda.main.model.Admin;
 import erdalguda.main.model.Admin.Role;
+import erdalguda.main.model.User;
 import erdalguda.main.repository.AdminRepository;
+import erdalguda.main.repository.UserRepository;
 import erdalguda.main.service.AdminService;
 import erdalguda.main.service.JwtService;
 import jakarta.annotation.PostConstruct;
@@ -12,9 +14,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +33,9 @@ public class AuthController {
 
     @Autowired
     private AdminRepository adminRepo;
+    
+    @Autowired
+    private UserRepository userRepo;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -39,23 +46,44 @@ public class AuthController {
     @Autowired
     private AdminService adminService;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     /**
      * Uygulama başlangıcında varsayılan admin hesabı oluşturur
      * Bu metod aynı zamanda mevcut admin hesaplarının rollerini de kontrol eder ve düzeltir
      */
     @PostConstruct
     public void createDefaultAdmin() {
+        // Önce veritabanında MANAGER rollerini USTA'ya çevir (SQL ile)
+        try {
+            logger.info("Veritabanı migration başlatılıyor...");
+            int updatedRows = jdbcTemplate.update("UPDATE admin SET role = 'USTA' WHERE role = 'MANAGER'");
+            if (updatedRows > 0) {
+                logger.info("{} adet MANAGER rolü USTA'ya güncellendi", updatedRows);
+            }
+        } catch (Exception e) {
+            logger.warn("Migration sırasında hata oluştu: {}", e.getMessage());
+            // Hata durumunda tabloyu temizle
+            try {
+                jdbcTemplate.update("DELETE FROM admin WHERE role NOT IN ('ADMIN', 'USTA', 'MUHASEBECI')");
+                logger.info("Geçersiz roller temizlendi");
+            } catch (Exception cleanupEx) {
+                logger.error("Tablo temizleme hatası: {}", cleanupEx.getMessage());
+            }
+        }
+        
         // Varsayılan admin hesabı oluştur
-        if (!adminRepo.existsById("admin")) {
+        if (!adminRepo.existsById("erdalguda")) {
             Admin admin = new Admin();
-            admin.setUsername("admin");
-            admin.setPassword(passwordEncoder.encode("123456"));
+            admin.setUsername("erdalguda");
+            admin.setPassword(passwordEncoder.encode("admin123"));
             admin.setRole(Role.ADMIN); // Ana admin kullanıcısı
             adminRepo.save(admin);
             logger.info("Varsayılan admin kullanıcısı oluşturuldu: {}", admin.getUsername());
         } else {
             // Eğer admin varsa, rolünün ADMIN olduğundan emin ol
-            Optional<Admin> existingAdmin = adminRepo.findById("admin");
+            Optional<Admin> existingAdmin = adminRepo.findById("erdalguda");
             if (existingAdmin.isPresent()) {
                 Admin admin = existingAdmin.get();
                 if (admin.getRole() != Role.ADMIN) {
@@ -68,11 +96,88 @@ public class AuthController {
             }
         }
         
+        // Eski "admin" kullanıcısını "erdalguda" olarak güncelle (migration)
+        Optional<Admin> oldAdmin = adminRepo.findById("admin");
+        if (oldAdmin.isPresent() && !adminRepo.existsById("erdalguda")) {
+            Admin admin = oldAdmin.get();
+            adminRepo.deleteById("admin"); // Eski admin'i sil
+            admin.setUsername("erdalguda");
+            admin.setPassword(passwordEncoder.encode("admin123"));
+            adminRepo.save(admin);
+            logger.info("Eski admin kullanıcısı erdalguda olarak güncellendi");
+        }
+        
         // Tüm kullanıcıları ve rollerini logla
-        List<Admin> allUsers = adminRepo.findAll();
-        logger.info("Sistemdeki tüm kullanıcılar ve rolleri:");
-        for (Admin user : allUsers) {
-            logger.info("Kullanıcı: {}, Rol: {}", user.getUsername(), user.getRole());
+        try {
+            List<Admin> finalUsers = adminRepo.findAll();
+            logger.info("Sistemdeki tüm kullanıcılar ve rolleri:");
+            for (Admin user : finalUsers) {
+                logger.info("Kullanıcı: {}, Rol: {}", user.getUsername(), user.getRole());
+            }
+        } catch (Exception e) {
+            logger.error("Kullanıcı listeleme hatası: {}", e.getMessage());
+        }
+    }
+
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@RequestBody RegisterRequest request) {
+        logger.info("Yeni kullanıcı kayıt denemesi: {}", request.getUsername());
+        
+        // Kullanıcı adı kontrolü (hem admin hem user tablolarında)
+        if (adminRepo.existsById(request.getUsername()) || userRepo.existsByUsername(request.getUsername())) {
+            logger.warn("Kullanıcı adı zaten kullanılıyor: {}", request.getUsername());
+            return ResponseEntity.badRequest().body("Bu kullanıcı adı zaten kullanılıyor");
+        }
+        
+        // E-posta kontrolü (eğer verilmişse)
+        if (request.getEmail() != null && !request.getEmail().isEmpty() && userRepo.existsByEmail(request.getEmail())) {
+            logger.warn("E-posta adresi zaten kullanılıyor: {}", request.getEmail());
+            return ResponseEntity.badRequest().body("Bu e-posta adresi zaten kullanılıyor");
+        }
+        
+        // Şifre uzunluk kontrolü
+        if (request.getPassword() == null || request.getPassword().length() < 6) {
+            return ResponseEntity.badRequest().body("Şifre en az 6 karakter olmalıdır");
+        }
+        
+        try {
+            // Rol kontrolü ve atama
+            User.Role selectedRole = User.Role.MUHASEBECI; // Varsayılan rol
+            if (request.getRole() != null && !request.getRole().isEmpty()) {
+                try {
+                    selectedRole = User.Role.valueOf(request.getRole().toUpperCase());
+                    logger.info("Kullanıcı {} için {} rolü seçildi", request.getUsername(), selectedRole);
+                } catch (IllegalArgumentException e) {
+                    logger.warn("Geçersiz rol seçimi: {}, varsayılan MUHASEBECI atanacak", request.getRole());
+                    selectedRole = User.Role.MUHASEBECI;
+                }
+            }
+            
+            // Yeni kullanıcı oluştur (onay bekliyor)
+            User user = new User();
+            user.setUsername(request.getUsername());
+            user.setPassword(passwordEncoder.encode(request.getPassword()));
+            user.setFullName(request.getFullName());
+            user.setEmail(request.getEmail());
+            user.setPhone(request.getPhone());
+            user.setRole(selectedRole); // Seçilen rol
+            user.setIsActive(false); // Onay bekliyor
+            user.setIsApproved(false); // Admin onayı gerekli
+            
+            userRepo.save(user);
+            logger.info("Yeni kullanıcı kaydedildi (onay bekliyor): {} - Rol: {}", user.getUsername(), user.getRole());
+            
+            return ResponseEntity.ok(Map.of(
+                "message", "Kayıt başarılı! Hesabınız admin onayı bekliyor.",
+                "username", user.getUsername(),
+                "role", user.getRole().name(),
+                "status", "PENDING_APPROVAL"
+            ));
+            
+        } catch (Exception e) {
+            logger.error("Kullanıcı kayıt hatası: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Kayıt işlemi başarısız");
         }
     }
 
@@ -80,74 +185,99 @@ public class AuthController {
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
         logger.info("Giriş denemesi: {}", request.getUsername());
         
+        // Önce admin tablosunda ara
         Optional<Admin> adminOpt = adminRepo.findById(request.getUsername());
         if (adminOpt.isPresent()) {
             Admin admin = adminOpt.get();
-            logger.info("Kullanıcı bulundu: {}, Rol: {}", admin.getUsername(), admin.getRole());
+            logger.info("Admin kullanıcısı bulundu: {}, Rol: {}", admin.getUsername(), admin.getRole());
             
             if (passwordEncoder.matches(request.getPassword(), admin.getPassword())) {
-                // Rolü kontrol edip logla
-                logger.info("Şifre doğrulandı. Token oluşturuluyor, Rol: {}", admin.getRole());
+                logger.info("Admin şifre doğrulandı. Token oluşturuluyor, Rol: {}", admin.getRole());
                 
                 String token = jwtService.generateToken(admin.getUsername(), admin.getRole());
                 
-                // Oluşturulan tokeni test amacıyla logda görelim
-                String username = jwtService.extractUsername(token);
-                Role extractedRole = jwtService.extractRole(token);
-                List<String> authorities = jwtService.extractAuthorities(token)
-                    .stream()
-                    .map(auth -> auth.getAuthority())
-                    .collect(Collectors.toList());
-                
-                logger.info("Token oluşturuldu - Username: {}, Rol: {}, Yetkiler: {}", 
-                         username, extractedRole, authorities);
-                
-                // Rol bilgisini de döndürelim
                 LoginResponse response = new LoginResponse();
                 response.setToken(token);
                 response.setRole(admin.getRole().name());
                 response.setUsername(admin.getUsername());
+                response.setUserType("ADMIN");
+                
+                return ResponseEntity.ok(response);
+            } else {
+                logger.warn("Admin kullanıcı {} için şifre eşleşmedi", request.getUsername());
+            }
+        }
+        
+        // Admin bulunamazsa normal user tablosunda ara
+        Optional<User> userOpt = userRepo.findByUsername(request.getUsername());
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+            logger.info("Normal kullanıcı bulundu: {}, Onaylandı: {}, Aktif: {}", 
+                       user.getUsername(), user.getIsApproved(), user.getIsActive());
+            
+            if (!user.getIsApproved()) {
+                logger.warn("Kullanıcı {} henüz onaylanmamış", request.getUsername());
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body("Hesabınız henüz admin tarafından onaylanmamış. Lütfen onay bekleyin.");
+            }
+            
+            if (!user.getIsActive()) {
+                logger.warn("Kullanıcı {} aktif değil", request.getUsername());
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Hesabınız aktif değil");
+            }
+            
+            if (passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+                logger.info("Kullanıcı şifre doğrulandı. Token oluşturuluyor, Rol: {}", user.getRole());
+                
+                // User'ın kendi rolünü Admin.Role enum'ına çevir
+                Role adminRole;
+                try {
+                    adminRole = Role.valueOf(user.getRole().name());
+                } catch (IllegalArgumentException e) {
+                    // Eğer rol eşleşmezse varsayılan olarak MUHASEBECI
+                    adminRole = Role.MUHASEBECI;
+                    logger.warn("Kullanıcı rolü {} Admin rolüne çevrilemedi, MUHASEBECI atandı", user.getRole());
+                }
+                
+                String token = jwtService.generateToken(user.getUsername(), adminRole);
+                
+                LoginResponse response = new LoginResponse();
+                response.setToken(token);
+                response.setRole(adminRole.name());
+                response.setUsername(user.getUsername());
+                response.setUserType("USER");
                 
                 return ResponseEntity.ok(response);
             } else {
                 logger.warn("Kullanıcı {} için şifre eşleşmedi", request.getUsername());
             }
-        } else {
-            logger.warn("Kullanıcı bulunamadı: {}", request.getUsername());
         }
+        
+        logger.warn("Kullanıcı bulunamadı: {}", request.getUsername());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Geçersiz kullanıcı adı veya şifre");
     }
     
-    /**
-     * Şifre değiştirme endpoint'i
-     * Mevcut şifre ve yeni şifre gereklidir
-     */
+    // Şifre değiştirme
     @PostMapping("/change-password")
     public ResponseEntity<?> changePassword(@RequestBody ChangePasswordRequest request) {
-        logger.info("Şifre değiştirme isteği: {}", request.getUsername());
-        
-        // Mevcut şifreyi doğrula
-        if (!adminService.verifyCurrentPassword(request.getUsername(), request.getCurrentPassword())) {
-            logger.warn("Kullanıcı {} için geçersiz mevcut şifre", request.getUsername());
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Mevcut şifre hatalı");
+        Optional<Admin> adminOpt = adminRepo.findById(request.getUsername());
+        if (adminOpt.isEmpty()) {
+            return ResponseEntity.badRequest().body("Kullanıcı bulunamadı");
         }
         
-        // Şifreyi değiştir
-        if (adminService.changePassword(request.getUsername(), request.getNewPassword())) {
-            logger.info("Kullanıcı {} için şifre başarıyla değiştirildi", request.getUsername());
-            return ResponseEntity.ok(Map.of("message", "Şifre başarıyla değiştirildi"));
-        } else {
-            logger.error("Kullanıcı {} için şifre değiştirme başarısız", request.getUsername());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Şifre değiştirme işlemi başarısız");
+        Admin admin = adminOpt.get();
+        
+        // Mevcut şifreyi kontrol et
+        if (!passwordEncoder.matches(request.getCurrentPassword(), admin.getPassword())) {
+            return ResponseEntity.badRequest().body("Mevcut şifre yanlış");
         }
-    }
-    
-    @GetMapping("/test-auth")
-    public ResponseEntity<?> testAuth() {
-        logger.info("Kimlik doğrulama test endpointi çağrıldı");
-        return ResponseEntity.ok(
-            Map.of("message", "Kimlik doğrulama başarılı", 
-                  "timestamp", System.currentTimeMillis()));
+        
+        // Yeni şifreyi kaydet
+        admin.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        adminRepo.save(admin);
+        
+        logger.info("Kullanıcı {} şifresini değiştirdi", request.getUsername());
+        return ResponseEntity.ok().build();
     }
     
     @GetMapping("/admin/test")
@@ -158,54 +288,163 @@ public class AuthController {
                   "timestamp", System.currentTimeMillis()));
     }
     
-    // Sadece ADMIN rolüne sahip kullanıcılar tarafından erişilebilir
-    @PostMapping("/admin/create-manager")
-    public ResponseEntity<?> createManager(@RequestBody CreateManagerRequest request) {
+    // Sadece ADMIN rolüne sahip kullanıcılar tarafından erişilebilir - Usta oluşturma
+    @PostMapping("/admin/create-usta")
+    public ResponseEntity<?> createUsta(@RequestBody CreateUserRequest request) {
         // Kullanıcı adı kontrolü
         if (adminRepo.existsById(request.getUsername())) {
             return ResponseEntity.badRequest().body("Bu kullanıcı adı zaten kullanılıyor");
         }
         
-        Admin manager = new Admin();
-        manager.setUsername(request.getUsername());
-        manager.setPassword(passwordEncoder.encode(request.getPassword()));
-        manager.setRole(Role.MANAGER); // Varsayılan olarak MANAGER rolü
+        Admin usta = new Admin();
+        usta.setUsername(request.getUsername());
+        usta.setPassword(passwordEncoder.encode(request.getPassword()));
+        usta.setRole(Role.USTA);
         
-        adminRepo.save(manager);
-        logger.info("Yeni manager oluşturuldu: {}", manager.getUsername());
-        return ResponseEntity.ok(new AdminResponse(manager));
+        adminRepo.save(usta);
+        logger.info("Yeni usta oluşturuldu: {}", usta.getUsername());
+        return ResponseEntity.ok(new AdminResponse(usta));
     }
     
-    // Yöneticileri listele (sadece ADMIN erişebilir)
-    @GetMapping("/admin/managers")
-    public ResponseEntity<List<AdminResponse>> listManagers() {
-        List<Admin> managers = adminRepo.findByRole(Role.MANAGER);
-        List<AdminResponse> response = managers.stream()
+    // Sadece ADMIN rolüne sahip kullanıcılar tarafından erişilebilir - Muhasebeci oluşturma
+    @PostMapping("/admin/create-muhasebeci")
+    public ResponseEntity<?> createMuhasebeci(@RequestBody CreateUserRequest request) {
+        // Kullanıcı adı kontrolü
+        if (adminRepo.existsById(request.getUsername())) {
+            return ResponseEntity.badRequest().body("Bu kullanıcı adı zaten kullanılıyor");
+        }
+        
+        Admin muhasebeci = new Admin();
+        muhasebeci.setUsername(request.getUsername());
+        muhasebeci.setPassword(passwordEncoder.encode(request.getPassword()));
+        muhasebeci.setRole(Role.MUHASEBECI);
+        
+        adminRepo.save(muhasebeci);
+        logger.info("Yeni muhasebeci oluşturuldu: {}", muhasebeci.getUsername());
+        return ResponseEntity.ok(new AdminResponse(muhasebeci));
+    }
+    
+    // Tüm kullanıcıları listele (sadece ADMIN erişebilir)
+    @GetMapping("/admin/users")
+    public ResponseEntity<List<AdminResponse>> listAllUsers() {
+        List<Admin> allUsers = adminRepo.findAll();
+        List<AdminResponse> response = allUsers.stream()
                 .map(AdminResponse::new)
                 .collect(Collectors.toList());
-        logger.info("{} adet manager listelendi", managers.size());
+        logger.info("{} adet kullanıcı listelendi", allUsers.size());
         return ResponseEntity.ok(response);
     }
     
-    // Yönetici silme (sadece ADMIN erişebilir)
-    @DeleteMapping("/admin/managers/{username}")
-    public ResponseEntity<?> deleteManager(@PathVariable String username) {
-        Optional<Admin> managerOpt = adminRepo.findById(username);
+    // Belirli role sahip kullanıcıları listele (sadece ADMIN erişebilir)
+    @GetMapping("/admin/users/{role}")
+    public ResponseEntity<List<AdminResponse>> listUsersByRole(@PathVariable String role) {
+        try {
+            Role userRole = Role.valueOf(role.toUpperCase());
+            List<Admin> users = adminRepo.findByRole(userRole);
+            List<AdminResponse> response = users.stream()
+                    .map(AdminResponse::new)
+                    .collect(Collectors.toList());
+            logger.info("{} rolünde {} adet kullanıcı listelendi", role, users.size());
+            return ResponseEntity.ok(response);
+        } catch (IllegalArgumentException e) {
+            logger.warn("Geçersiz rol: {}", role);
+            return ResponseEntity.badRequest().body(Collections.emptyList());
+        }
+    }
+    
+    // Kullanıcı silme (sadece ADMIN erişebilir, ADMIN kullanıcıları silinemez)
+    @DeleteMapping("/admin/users/{username}")
+    public ResponseEntity<?> deleteUser(@PathVariable String username) {
+        Optional<Admin> userOpt = adminRepo.findById(username);
         
-        if (managerOpt.isEmpty()) {
-            logger.warn("Silinecek manager bulunamadı: {}", username);
+        if (userOpt.isEmpty()) {
+            logger.warn("Silinecek kullanıcı bulunamadı: {}", username);
             return ResponseEntity.notFound().build();
         }
         
-        Admin manager = managerOpt.get();
-        if (manager.getRole() != Role.MANAGER) {
-            logger.warn("Sadece MANAGER rolündeki hesaplar silinebilir: {}", username);
-            return ResponseEntity.badRequest().body("Sadece yönetici hesapları silinebilir");
+        Admin user = userOpt.get();
+        if (user.getRole() == Role.ADMIN) {
+            logger.warn("ADMIN rolündeki hesaplar silinemez: {}", username);
+            return ResponseEntity.badRequest().body("ADMIN hesapları silinemez");
         }
         
-        adminRepo.delete(manager);
-        logger.info("Manager silindi: {}", username);
+        adminRepo.delete(user);
+        logger.info("Kullanıcı silindi: {} ({})", username, user.getRole());
         return ResponseEntity.ok().build();
+    }
+
+    // Onay bekleyen kullanıcıları listele (sadece ADMIN erişebilir)
+    @GetMapping("/admin/pending-users")
+    public ResponseEntity<List<UserResponse>> listPendingUsers() {
+        List<User> pendingUsers = userRepo.findByIsApprovedFalseOrderByCreatedAtDesc();
+        List<UserResponse> response = pendingUsers.stream()
+                .map(UserResponse::new)
+                .collect(Collectors.toList());
+        logger.info("{} adet onay bekleyen kullanıcı listelendi", pendingUsers.size());
+        return ResponseEntity.ok(response);
+    }
+
+    // Onay bekleyen kullanıcı sayısını getir (sadece ADMIN erişebilir)
+    @GetMapping("/admin/pending-users/count")
+    public ResponseEntity<Map<String, Object>> getPendingUsersCount() {
+        long count = userRepo.countByIsApprovedFalse();
+        return ResponseEntity.ok(Map.of("pendingCount", count));
+    }
+
+    // Kullanıcıyı onayla (sadece ADMIN erişebilir)
+    @PostMapping("/admin/approve-user/{userId}")
+    public ResponseEntity<?> approveUser(@PathVariable Long userId, @RequestBody ApproveUserRequest request) {
+        Optional<User> userOpt = userRepo.findById(userId);
+        
+        if (userOpt.isEmpty()) {
+            logger.warn("Onaylanacak kullanıcı bulunamadı: {}", userId);
+            return ResponseEntity.notFound().build();
+        }
+        
+        User user = userOpt.get();
+        if (user.getIsApproved()) {
+            return ResponseEntity.badRequest().body("Kullanıcı zaten onaylı");
+        }
+        
+        user.setIsApproved(true);
+        user.setIsActive(true);
+        user.setApprovedBy(request.getApprovedBy());
+        user.setApprovedAt(LocalDateTime.now());
+        
+        userRepo.save(user);
+        logger.info("Kullanıcı onaylandı: {} (Onaylayan: {})", user.getUsername(), request.getApprovedBy());
+        
+        return ResponseEntity.ok(Map.of(
+            "message", "Kullanıcı başarıyla onaylandı",
+            "user", new UserResponse(user)
+        ));
+    }
+
+    // Kullanıcı onayını reddet (sadece ADMIN erişebilir)
+    @DeleteMapping("/admin/reject-user/{userId}")
+    public ResponseEntity<?> rejectUser(@PathVariable Long userId) {
+        Optional<User> userOpt = userRepo.findById(userId);
+        
+        if (userOpt.isEmpty()) {
+            logger.warn("Reddedilecek kullanıcı bulunamadı: {}", userId);
+            return ResponseEntity.notFound().build();
+        }
+        
+        User user = userOpt.get();
+        userRepo.delete(user);
+        logger.info("Kullanıcı kaydı reddedildi ve silindi: {}", user.getUsername());
+        
+        return ResponseEntity.ok(Map.of("message", "Kullanıcı kaydı reddedildi"));
+    }
+
+    @Getter @Setter
+    static class RegisterRequest {
+        private String username;
+        private String password;
+        private String fullName;
+        private String email;
+        private String phone;
+        private String role; // Seçilen rol
     }
 
     @Getter @Setter
@@ -215,7 +454,7 @@ public class AuthController {
     }
     
     @Getter @Setter
-    static class CreateManagerRequest {
+    static class CreateUserRequest {
         private String username;
         private String password;
     }
@@ -232,6 +471,7 @@ public class AuthController {
         private String token;
         private String role;
         private String username;
+        private String userType; // "ADMIN" veya "USER"
     }
     
     @Getter @Setter
@@ -242,6 +482,38 @@ public class AuthController {
         public AdminResponse(Admin admin) {
             this.username = admin.getUsername();
             this.role = admin.getRole().name();
+        }
+    }
+
+    @Getter @Setter
+    static class ApproveUserRequest {
+        private String approvedBy;
+    }
+
+    @Getter @Setter
+    static class UserResponse {
+        private Long id;
+        private String username;
+        private String fullName;
+        private String email;
+        private String phone;
+        private String role;
+        private LocalDateTime createdAt;
+        private Boolean isApproved;
+        private String approvedBy;
+        private LocalDateTime approvedAt;
+        
+        public UserResponse(User user) {
+            this.id = user.getId();
+            this.username = user.getUsername();
+            this.fullName = user.getFullName();
+            this.email = user.getEmail();
+            this.phone = user.getPhone();
+            this.role = user.getRole().name();
+            this.createdAt = user.getCreatedAt();
+            this.isApproved = user.getIsApproved();
+            this.approvedBy = user.getApprovedBy();
+            this.approvedAt = user.getApprovedAt();
         }
     }
 }

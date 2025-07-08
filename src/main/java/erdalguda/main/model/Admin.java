@@ -23,4 +23,29 @@ public class Admin {
         USTA,         // Orta yetki - Müşteriler, Siparişler, Kumaşlar, Şablonlar
         MUHASEBECI    // Sınırlı yetki - Sadece Müşteriler ve Siparişler
     }
+
+    // Manual getter/setter methods (Lombok not working)
+    public String getUsername() {
+        return username;
+    }
+    
+    public void setUsername(String username) {
+        this.username = username;
+    }
+    
+    public String getPassword() {
+        return password;
+    }
+    
+    public void setPassword(String password) {
+        this.password = password;
+    }
+    
+    public Role getRole() {
+        return role;
+    }
+    
+    public void setRole(Role role) {
+        this.role = role;
+    }
 }

@@ -6,7 +6,8 @@ import erdalguda.main.model.Measurement;
 import erdalguda.main.repository.CustomerRepository;
 import erdalguda.main.repository.OrderRepository;
 import erdalguda.main.repository.MeasurementRepository;
-import lombok.RequiredArgsConstructor;
+import erdalguda.main.service.EmailService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
@@ -19,12 +20,21 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/customers")
-@RequiredArgsConstructor
 public class CustomerController {
 
     private final CustomerRepository customerRepo;
     private final OrderRepository orderRepo;
     private final MeasurementRepository measurementRepo;
+    private final EmailService emailService;
+
+    @Autowired
+    public CustomerController(CustomerRepository customerRepo, OrderRepository orderRepo, 
+                            MeasurementRepository measurementRepo, EmailService emailService) {
+        this.customerRepo = customerRepo;
+        this.orderRepo = orderRepo;
+        this.measurementRepo = measurementRepo;
+        this.emailService = emailService;
+    }
 
     @GetMapping
     public List<CustomerResponse> getAll() {
@@ -35,7 +45,14 @@ public class CustomerController {
 
     @PostMapping
     public Customer create(@RequestBody Customer customer) {
-        return customerRepo.save(customer);
+        Customer saved = customerRepo.save(customer);
+        
+        // Hoş geldin email'i gönder
+        if (saved.getEmail() != null && !saved.getEmail().trim().isEmpty()) {
+            emailService.sendWelcomeEmail(saved.getEmail(), saved.getFirstName(), saved.getLastName());
+        }
+        
+        return saved;
     }
 
     @GetMapping("/{id}")
@@ -109,6 +126,9 @@ public class CustomerController {
         if (updates.containsKey("phone")) {
             customer.setPhone((String) updates.get("phone"));
         }
+        if (updates.containsKey("email")) {
+            customer.setEmail((String) updates.get("email"));
+        }
         if (updates.containsKey("height")) {
             customer.setHeight(Double.valueOf(updates.get("height").toString()));
         }
@@ -127,6 +147,7 @@ public class CustomerController {
                     customer.setLastName(updated.getLastName());
                     customer.setAddress(updated.getAddress());
                     customer.setPhone(updated.getPhone());
+                    customer.setEmail(updated.getEmail());
                     customer.setHeight(updated.getHeight());
                     customer.setWeight(updated.getWeight());
                     return ResponseEntity.ok(customerRepo.save(customer));

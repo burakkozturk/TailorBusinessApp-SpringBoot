@@ -4,11 +4,10 @@ import erdalguda.main.dto.OrderResponse;
 import erdalguda.main.model.Order;
 import erdalguda.main.model.Order.OrderStatus;
 import erdalguda.main.model.Customer;
-import erdalguda.main.model.Fabric;
 import erdalguda.main.repository.OrderRepository;
 import erdalguda.main.repository.CustomerRepository;
-import erdalguda.main.repository.FabricRepository;
-import lombok.RequiredArgsConstructor;
+import erdalguda.main.service.EmailService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -20,12 +19,18 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/orders")
-@RequiredArgsConstructor
 public class OrderController {
 
     private final OrderRepository orderRepo;
     private final CustomerRepository customerRepo;
-    private final FabricRepository fabricRepo;
+    private final EmailService emailService;
+
+    @Autowired
+    public OrderController(OrderRepository orderRepo, CustomerRepository customerRepo, EmailService emailService) {
+        this.orderRepo = orderRepo;
+        this.customerRepo = customerRepo;
+        this.emailService = emailService;
+    }
 
     @PostMapping
     public ResponseEntity<?> createOrder(@RequestBody Order order) {
@@ -37,15 +42,6 @@ public class OrderController {
         Optional<Customer> customerOpt = customerRepo.findById(order.getCustomer().getId());
         if (customerOpt.isEmpty()) {
             return ResponseEntity.badRequest().body("Müşteri bulunamadı");
-        }
-
-        // Kumaş kontrolü
-        if (order.getFabric() != null && order.getFabric().getId() != null) {
-            Optional<Fabric> fabricOpt = fabricRepo.findById(order.getFabric().getId());
-            if (fabricOpt.isEmpty()) {
-                return ResponseEntity.badRequest().body("Seçilen kumaş bulunamadı");
-            }
-            order.setFabric(fabricOpt.get());
         }
 
         order.setCustomer(customerOpt.get());
@@ -111,6 +107,7 @@ public class OrderController {
         }
 
         Order existing = orderOpt.get();
+        OrderStatus oldStatus = existing.getStatus();
 
         // Temel bilgileri güncelle
         existing.setProductType(updated.getProductType());
@@ -120,16 +117,14 @@ public class OrderController {
         existing.setEstimatedDeliveryDate(updated.getEstimatedDeliveryDate());
         existing.setDeliveryDate(updated.getDeliveryDate());
         existing.setTotalPrice(updated.getTotalPrice());
-        existing.setPatternFilePath(updated.getPatternFilePath());
-        existing.setPatternFileType(updated.getPatternFileType());
-
-        // Kumaş güncellemesi
-        if (updated.getFabric() != null && updated.getFabric().getId() != null) {
-            Optional<Fabric> fabricOpt = fabricRepo.findById(updated.getFabric().getId());
-            fabricOpt.ifPresent(existing::setFabric);
-        }
 
         Order saved = orderRepo.save(existing);
+        
+        // Durum değişmişse email gönder
+        if (oldStatus != updated.getStatus()) {
+            emailService.sendOrderStatusUpdateEmail(saved);
+        }
+        
         return ResponseEntity.ok(saved);
     }
 
@@ -149,6 +144,7 @@ public class OrderController {
         }
 
         Order order = orderOpt.get();
+        OrderStatus oldStatus = order.getStatus();
         order.setStatus(newStatus);
 
         // Eğer durum DELIVERED ise, teslim tarihini güncelle
@@ -157,6 +153,12 @@ public class OrderController {
         }
 
         Order saved = orderRepo.save(order);
+        
+        // Durum değişmişse email gönder
+        if (oldStatus != newStatus) {
+            emailService.sendOrderStatusUpdateEmail(saved);
+        }
+        
         return ResponseEntity.ok(saved);
     }
 

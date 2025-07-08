@@ -1,9 +1,9 @@
 package erdalguda.main.config;
 
 import erdalguda.main.security.JwtAuthFilter;
-import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.*;
 import org.springframework.security.authentication.*;
 import org.springframework.security.config.Customizer;
@@ -20,11 +20,15 @@ import java.util.Arrays;
 import java.util.List;
 
 @Configuration
-@RequiredArgsConstructor
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private static final Logger logger = LoggerFactory.getLogger(SecurityConfig.class);
+
+    @Autowired
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
+        this.jwtAuthFilter = jwtAuthFilter;
+    }
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -37,12 +41,11 @@ public class SecurityConfig {
                     auth
                         // Genel erişim - login, test endpoint'leri
                         .requestMatchers("/auth/login", "/auth/register", "/auth/change-password").permitAll()
+                        .requestMatchers("/api/test/**").permitAll()
                         
                         // Sadece ADMIN erişimi
                         .requestMatchers("/auth/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/fabrics/**").hasRole("ADMIN")
-                        .requestMatchers("/api/templates/**").hasRole("ADMIN")
                         .requestMatchers("/api/messages/**").hasRole("ADMIN")
                         .requestMatchers("/api/blog/**").hasRole("ADMIN")
                         .requestMatchers("/api/categories/**").hasRole("ADMIN")
@@ -53,6 +56,8 @@ public class SecurityConfig {
                         // MUHASEBECI erişimi (ADMIN + USTA + MUHASEBECI)
                         .requestMatchers("/api/customers/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")
                         .requestMatchers("/api/orders/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")
+                        .requestMatchers("/api/measurements/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")
+                        .requestMatchers("/api/reports/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")
                         .requestMatchers("/api/muhasebeci/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")
                         
                         // Genel ayarlar - tüm roller erişebilir
@@ -63,7 +68,7 @@ public class SecurityConfig {
                         
                     logger.info("Yetkilendirme kuralları yapılandırıldı:");
                     logger.info("- ADMIN: Tüm modüller");
-                    logger.info("- USTA: Müşteriler, Siparişler, Kumaşlar, Şablonlar");
+                    logger.info("- USTA: Müşteriler, Siparişler");
                     logger.info("- MUHASEBECI: Müşteriler, Siparişler");
                 } catch (Exception e) {
                     logger.error("SecurityConfig yapılandırma hatası: {}", e.getMessage(), e);
@@ -80,8 +85,13 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(Arrays.asList("http://localhost:3000", "https://erdalguda.netlify.app")); // Belirli originler
-        config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        // Development için tüm localhost portlarına izin ver
+        config.setAllowedOriginPatterns(Arrays.asList(
+            "http://localhost:*", 
+            "https://erdalguda.netlify.app",
+            "https://*.netlify.app"
+        ));
+        config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(Arrays.asList("*"));
         config.setExposedHeaders(Arrays.asList("Authorization"));
         config.setAllowCredentials(true);
@@ -89,7 +99,7 @@ public class SecurityConfig {
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
-        logger.info("CORS yapılandırması tamamlandı - Belirli originler için izin verildi");
+        logger.info("CORS yapılandırması tamamlandı - Tüm localhost portları ve Netlify için izin verildi");
         return source;
     }
 

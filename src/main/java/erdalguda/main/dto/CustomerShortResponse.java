@@ -1,6 +1,5 @@
 package erdalguda.main.dto;
 
-import erdalguda.main.dto.MeasurementResponse;
 import erdalguda.main.model.Customer;
 import lombok.Getter;
 import lombok.Setter;
@@ -25,7 +24,6 @@ public class CustomerShortResponse {
         this.phone = c.getPhone();
         this.height = c.getHeight();
         this.weight = c.getWeight();
-        // MeasurementResponse ile döngüyü kırıyoruz!
         this.measurement = c.getMeasurement() != null ? new MeasurementResponse(c.getMeasurement()) : null;
     }
 }

@@ -132,4 +132,4 @@ public class PostController {
         List<Post> posts = postRepository.findByTitleContainingOrContentContaining(keyword, keyword);
         return new ResponseEntity<>(posts, HttpStatus.OK);
     }
-}
+} 

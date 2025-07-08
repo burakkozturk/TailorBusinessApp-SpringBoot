@@ -14,6 +14,7 @@ public class CustomerResponse {
     private String lastName;
     private String address;
     private String phone;
+    private String email;
     private Double height;
     private Double weight;
     private MeasurementResponse measurement;
@@ -24,9 +25,9 @@ public class CustomerResponse {
         this.lastName = c.getLastName();
         this.address = c.getAddress();
         this.phone = c.getPhone();
+        this.email = c.getEmail();
         this.height = c.getHeight();
         this.weight = c.getWeight();
-        // DİKKAT: Burada yeni MeasurementResponse kullanıyoruz!
         this.measurement = c.getMeasurement() != null ? new MeasurementResponse(c.getMeasurement()) : null;
     }
 }

@@ -445,18 +445,44 @@ public class AuthController {
         private String email;
         private String phone;
         private String role; // Seçilen rol
+        
+        // Manual getters/setters
+        public String getUsername() { return username; }
+        public void setUsername(String username) { this.username = username; }
+        public String getPassword() { return password; }
+        public void setPassword(String password) { this.password = password; }
+        public String getFullName() { return fullName; }
+        public void setFullName(String fullName) { this.fullName = fullName; }
+        public String getEmail() { return email; }
+        public void setEmail(String email) { this.email = email; }
+        public String getPhone() { return phone; }
+        public void setPhone(String phone) { this.phone = phone; }
+        public String getRole() { return role; }
+        public void setRole(String role) { this.role = role; }
     }
 
     @Getter @Setter
     static class LoginRequest {
         private String username;
         private String password;
+        
+        // Manual getters/setters
+        public String getUsername() { return username; }
+        public void setUsername(String username) { this.username = username; }
+        public String getPassword() { return password; }
+        public void setPassword(String password) { this.password = password; }
     }
     
     @Getter @Setter
     static class CreateUserRequest {
         private String username;
         private String password;
+        
+        // Manual getters/setters
+        public String getUsername() { return username; }
+        public void setUsername(String username) { this.username = username; }
+        public String getPassword() { return password; }
+        public void setPassword(String password) { this.password = password; }
     }
     
     @Getter @Setter
@@ -464,6 +490,14 @@ public class AuthController {
         private String username;
         private String currentPassword;
         private String newPassword;
+        
+        // Manual getters/setters
+        public String getUsername() { return username; }
+        public void setUsername(String username) { this.username = username; }
+        public String getCurrentPassword() { return currentPassword; }
+        public void setCurrentPassword(String currentPassword) { this.currentPassword = currentPassword; }
+        public String getNewPassword() { return newPassword; }
+        public void setNewPassword(String newPassword) { this.newPassword = newPassword; }
     }
     
     @Getter @Setter
@@ -472,6 +506,16 @@ public class AuthController {
         private String role;
         private String username;
         private String userType; // "ADMIN" veya "USER"
+        
+        // Manual getters/setters
+        public String getToken() { return token; }
+        public void setToken(String token) { this.token = token; }
+        public String getRole() { return role; }
+        public void setRole(String role) { this.role = role; }
+        public String getUsername() { return username; }
+        public void setUsername(String username) { this.username = username; }
+        public String getUserType() { return userType; }
+        public void setUserType(String userType) { this.userType = userType; }
     }
     
     @Getter @Setter
@@ -483,11 +527,21 @@ public class AuthController {
             this.username = admin.getUsername();
             this.role = admin.getRole().name();
         }
+        
+        // Manual getters/setters
+        public String getUsername() { return username; }
+        public void setUsername(String username) { this.username = username; }
+        public String getRole() { return role; }
+        public void setRole(String role) { this.role = role; }
     }
 
     @Getter @Setter
     static class ApproveUserRequest {
         private String approvedBy;
+        
+        // Manual getters/setters
+        public String getApprovedBy() { return approvedBy; }
+        public void setApprovedBy(String approvedBy) { this.approvedBy = approvedBy; }
     }
 
     @Getter @Setter

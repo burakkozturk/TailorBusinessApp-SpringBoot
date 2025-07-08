@@ -4,7 +4,7 @@ import erdalguda.main.model.Customer;
 import erdalguda.main.model.Measurement;
 import erdalguda.main.repository.CustomerRepository;
 import erdalguda.main.repository.MeasurementRepository;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,11 +14,16 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/measurements")
-@RequiredArgsConstructor
 public class MeasurementController {
 
     private final MeasurementRepository measurementRepo;
     private final CustomerRepository customerRepo;
+
+    @Autowired
+    public MeasurementController(MeasurementRepository measurementRepo, CustomerRepository customerRepo) {
+        this.measurementRepo = measurementRepo;
+        this.customerRepo = customerRepo;
+    }
 
     @PostMapping("/{customerId}")
     public ResponseEntity<?> createOrUpdateMeasurement(@PathVariable Long customerId,

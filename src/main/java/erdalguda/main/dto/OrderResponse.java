@@ -20,26 +20,19 @@ public class OrderResponse {
     private String status;
     private String notes;
     private Double totalPrice;
-    private String patternFilePath;
-    private String patternFileType;
-
     private CustomerShortResponse customer;
-    private FabricResponse fabric;
 
-    public OrderResponse(Order o) {
-        this.id = o.getId();
-        this.productType = o.getProductType() != null ? o.getProductType().name() : null;
-        this.fitType = o.getFitType() != null ? o.getFitType().name() : null;
-        this.createdAt = o.getCreatedAt();
-        this.orderDate = o.getOrderDate();
-        this.estimatedDeliveryDate = o.getEstimatedDeliveryDate();
-        this.deliveryDate = o.getDeliveryDate();
-        this.status = o.getStatus() != null ? o.getStatus().name() : null;
-        this.notes = o.getNotes();
-        this.totalPrice = o.getTotalPrice();
-        this.patternFilePath = o.getPatternFilePath();
-        this.patternFileType = o.getPatternFileType();
-        this.customer = o.getCustomer() != null ? new CustomerShortResponse(o.getCustomer()) : null;
-        this.fabric = o.getFabric() != null ? new FabricResponse(o.getFabric()) : null;
+    public OrderResponse(Order order) {
+        this.id = order.getId();
+        this.productType = order.getProductType() != null ? order.getProductType().name() : null;
+        this.fitType = order.getFitType() != null ? order.getFitType().name() : null;
+        this.createdAt = order.getCreatedAt();
+        this.orderDate = order.getOrderDate();
+        this.estimatedDeliveryDate = order.getEstimatedDeliveryDate();
+        this.deliveryDate = order.getDeliveryDate();
+        this.status = order.getStatus() != null ? order.getStatus().name() : null;
+        this.notes = order.getNotes();
+        this.totalPrice = order.getTotalPrice();
+        this.customer = order.getCustomer() != null ? new CustomerShortResponse(order.getCustomer()) : null;
     }
 }

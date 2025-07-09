@@ -20,8 +20,35 @@ public class Order {
     @Enumerated(EnumType.STRING)
     private ProductType productType;
 
+    // === GÖMLEK ÖZELLEŞTİRMELERİ ===
     @Enumerated(EnumType.STRING)
-    private FitType fitType;
+    private CollarType collarType; // Yaka çeşidi
+
+    @Enumerated(EnumType.STRING)
+    private SleeveType sleeveType; // Kol tipi
+
+    // === PANTOLON ÖZELLEŞTİRMELERİ ===
+    @Enumerated(EnumType.STRING)
+    private WaistType waistType; // Bel tipi
+
+    @Enumerated(EnumType.STRING)
+    private PleatType pleatType; // Pile tipi
+
+    @Enumerated(EnumType.STRING)
+    private LegType legType; // Paça tipi
+
+    // === CEKET ÖZELLEŞTİRMELERİ ===
+    @Enumerated(EnumType.STRING)
+    private ButtonType buttonType; // Düğme modeli
+
+    @Enumerated(EnumType.STRING)
+    private PocketType pocketType; // Cep modeli
+
+    @Enumerated(EnumType.STRING)
+    private VentType ventType; // Yırtmaç modeli
+
+    @Enumerated(EnumType.STRING)
+    private BackType backType; // Sırt modeli
 
     private LocalDateTime createdAt = LocalDateTime.now();
     private LocalDate orderDate = LocalDate.now();
@@ -41,13 +68,11 @@ public class Order {
     // Fiyat bilgileri
     private Double totalPrice;
 
-
-    // Enum'lar
+    // === ANA ENUM'LAR ===
     public enum ProductType {
         CEKET("Ceket"),
-        GÖMLEK("Gömlek"),
+        GÖMLEK("Gömlek"), 
         PANTOLON("Pantolon"),
-        YELEK("Yelek"),
         TAKIM("Takım Elbise");
 
         private final String displayName;
@@ -61,15 +86,150 @@ public class Order {
         }
     }
 
-    public enum FitType {
-        SLIM("Slim Fit"),
-        REGULAR("Regular Fit"),
-        BAGGY("Baggy Fit"),
-        CUSTOM("Özel Kesim");
+    // === GÖMLEK ENUM'LARI ===
+    public enum CollarType {
+        MONO("Mono Yaka"),
+        KIRLANGIC("Kırlangıç Yaka"),
+        HAKIM("Hakim Yaka"),
+        SAL("ŞAL Yaka");
 
         private final String displayName;
 
-        FitType(String displayName) {
+        CollarType(String displayName) {
+            this.displayName = displayName;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+    }
+
+    public enum SleeveType {
+        VATKALI("Vatkalı Kol"),
+        VOTKASIZ("Votkasız Kol"),
+        BUZGULU("Büzgülü Kol");
+
+        private final String displayName;
+
+        SleeveType(String displayName) {
+            this.displayName = displayName;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+    }
+
+    // === PANTOLON ENUM'LARI ===
+    public enum WaistType {
+        DUSUK_BEL("Düşük Bel"),
+        ARA_BEL("Ara Bel"),
+        YUKSEK_BEL("Yüksek Bel");
+
+        private final String displayName;
+
+        WaistType(String displayName) {
+            this.displayName = displayName;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+    }
+
+    public enum PleatType {
+        PILESIZ("Pilesiz Pantolon"),
+        TEK_PILE("Tek Pile Pantolon"),
+        CIFT_PILE("Çift Pile Pantolon");
+
+        private final String displayName;
+
+        PleatType(String displayName) {
+            this.displayName = displayName;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+    }
+
+    public enum LegType {
+        DAR_PACA("Dar Paça Pantolon"),
+        KLASIK("Klasik Pantolon"),
+        BOL_PACA("Bol Paça Pantolon");
+
+        private final String displayName;
+
+        LegType(String displayName) {
+            this.displayName = displayName;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+    }
+
+    // === CEKET ENUM'LARI ===
+    public enum ButtonType {
+        TEK_DUGME("Tek Düğme"),
+        IKI_DUGME("İki Düğme"),
+        UC_DUGME("Üç Düğme"),
+        DORT_DUGME("Dört Düğme");
+
+        private final String displayName;
+
+        ButtonType(String displayName) {
+            this.displayName = displayName;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+    }
+
+    public enum PocketType {
+        TEK_CEP("Tek Cep"),
+        CIFT_CEP("Çift Cep"),
+        FILO_CEP("Filo Cep"),
+        EGIK_CEP("Eğik Cep"),
+        TORBA_CEP("Torba Cep"),
+        KORUKLU_CEP("Körüklü Cep");
+
+        private final String displayName;
+
+        PocketType(String displayName) {
+            this.displayName = displayName;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+    }
+
+    public enum VentType {
+        YIRTMACSIZ("Yırtmaçsız Ceket"),
+        TEK_YIRTMAC("Tek Yırtmaçlı Ceket"),
+        CIFT_YIRTMAC("Çift Yırtmaçlı Ceket");
+
+        private final String displayName;
+
+        VentType(String displayName) {
+            this.displayName = displayName;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+    }
+
+    public enum BackType {
+        KORUKLU("Körüklü Ceket"),
+        KORUKSUZ("Körüksüz Ceket"),
+        ROBLI("Roblı Ceket");
+
+        private final String displayName;
+
+        BackType(String displayName) {
             this.displayName = displayName;
         }
 
@@ -98,15 +258,42 @@ public class Order {
         }
     }
 
-    // Manual getter/setter methods (Lombok not working)
+    // === MANUAL GETTER/SETTER METHODS ===
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     
     public ProductType getProductType() { return productType; }
     public void setProductType(ProductType productType) { this.productType = productType; }
     
-    public FitType getFitType() { return fitType; }
-    public void setFitType(FitType fitType) { this.fitType = fitType; }
+    // Gömlek özellikleri
+    public CollarType getCollarType() { return collarType; }
+    public void setCollarType(CollarType collarType) { this.collarType = collarType; }
+
+    public SleeveType getSleeveType() { return sleeveType; }
+    public void setSleeveType(SleeveType sleeveType) { this.sleeveType = sleeveType; }
+
+    // Pantolon özellikleri
+    public WaistType getWaistType() { return waistType; }
+    public void setWaistType(WaistType waistType) { this.waistType = waistType; }
+
+    public PleatType getPleatType() { return pleatType; }
+    public void setPleatType(PleatType pleatType) { this.pleatType = pleatType; }
+
+    public LegType getLegType() { return legType; }
+    public void setLegType(LegType legType) { this.legType = legType; }
+
+    // Ceket özellikleri
+    public ButtonType getButtonType() { return buttonType; }
+    public void setButtonType(ButtonType buttonType) { this.buttonType = buttonType; }
+
+    public PocketType getPocketType() { return pocketType; }
+    public void setPocketType(PocketType pocketType) { this.pocketType = pocketType; }
+
+    public VentType getVentType() { return ventType; }
+    public void setVentType(VentType ventType) { this.ventType = ventType; }
+
+    public BackType getBackType() { return backType; }
+    public void setBackType(BackType backType) { this.backType = backType; }
     
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

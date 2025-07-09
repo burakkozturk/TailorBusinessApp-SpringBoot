@@ -7,7 +7,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+
+import java.util.concurrent.CompletableFuture;
 
 @Service
 public class EmailService {
@@ -17,52 +20,64 @@ public class EmailService {
 
     @Value("${spring.mail.username:noreply@erdalguda.com}")
     private String fromEmail;
+    
+    @Value("${app.email.enabled:true}")
+    private boolean emailEnabled;
 
     @Autowired
     public EmailService(JavaMailSender mailSender) {
         this.mailSender = mailSender;
     }
 
-    public void sendOrderStatusUpdateEmail(Order order) {
-        log.info("Sipariş durum güncelleme email'i gönderme işlemi başlatıldı. Sipariş ID: {}", order.getId());
-        
-        if (order.getCustomer() == null) {
-            log.warn("Sipariş müşteri bilgisi null. Sipariş ID: {}", order.getId());
-            return;
-        }
-        
-        if (order.getCustomer().getEmail() == null || order.getCustomer().getEmail().trim().isEmpty()) {
-            log.info("Müşteri email adresi bulunamadı, email gönderilmiyor. Sipariş ID: {}, Müşteri: {} {}", 
-                    order.getId(), 
-                    order.getCustomer().getFirstName(), 
-                    order.getCustomer().getLastName());
-            return;
-        }
-
-        try {
-            log.info("Email gönderim parametreleri - From: {}, To: {}, Subject: Sipariş Durumu Güncellendi", 
-                    fromEmail, order.getCustomer().getEmail());
-                    
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(fromEmail);
-            message.setTo(order.getCustomer().getEmail());
-            message.setSubject("Sipariş Durumu Güncellendi - Erdal Güda Terzilik");
-            message.setText(buildOrderStatusMessage(order));
-
-            log.info("MailSender ile email gönderiliyor...");
-            mailSender.send(message);
+    @Async("emailTaskExecutor")
+    public CompletableFuture<Void> sendOrderStatusUpdateEmail(Order order) {
+        return CompletableFuture.runAsync(() -> {
+            log.info("📧 Sipariş durum güncelleme email'i gönderme işlemi başlatıldı. Sipariş ID: {}", order.getId());
             
-            log.info("✅ Sipariş durum güncelleme emaili BAŞARIYLA gönderildi! Müşteri: {}, Email: {}, Durum: {}", 
-                    order.getCustomer().getFirstName() + " " + order.getCustomer().getLastName(),
-                    order.getCustomer().getEmail(),
-                    order.getStatus().getDisplayName());
-                    
-        } catch (Exception e) {
-            log.error("❌ Email gönderilirken hata oluştu. Sipariş ID: {}, Email: {}, Hata: {}", 
-                    order.getId(), 
-                    order.getCustomer().getEmail(),
-                    e.getMessage(), e);
-        }
+            // Email servisi devre dışı mı kontrol et
+            if (!emailEnabled) {
+                log.info("⚡ Email servisi devre dışı bırakıldı (development mode). Email gönderilmiyor. Sipariş ID: {}", order.getId());
+                return;
+            }
+            
+            if (order.getCustomer() == null) {
+                log.warn("⚠️ Sipariş müşteri bilgisi null. Sipariş ID: {}", order.getId());
+                return;
+            }
+            
+            if (order.getCustomer().getEmail() == null || order.getCustomer().getEmail().trim().isEmpty()) {
+                log.info("⚠️ Müşteri email adresi bulunamadı, email gönderilmiyor. Sipariş ID: {}, Müşteri: {} {}", 
+                        order.getId(), 
+                        order.getCustomer().getFirstName(), 
+                        order.getCustomer().getLastName());
+                return;
+            }
+
+            try {
+                log.info("📤 Email gönderim parametreleri - From: {}, To: {}, Subject: Sipariş Durumu Güncellendi", 
+                        fromEmail, order.getCustomer().getEmail());
+                        
+                SimpleMailMessage message = new SimpleMailMessage();
+                message.setFrom(fromEmail);
+                message.setTo(order.getCustomer().getEmail());
+                message.setSubject("Sipariş Durumu Güncellendi - Erdal Güda Terzilik");
+                message.setText(buildOrderStatusMessage(order));
+
+                log.info("📮 MailSender ile email gönderiliyor...");
+                mailSender.send(message);
+                
+                log.info("✅ Sipariş durum güncelleme emaili BAŞARIYLA gönderildi! Müşteri: {}, Email: {}, Durum: {}", 
+                        order.getCustomer().getFirstName() + " " + order.getCustomer().getLastName(),
+                        order.getCustomer().getEmail(),
+                        order.getStatus().getDisplayName());
+                        
+            } catch (Exception e) {
+                log.error("❌ Email gönderilirken hata oluştu. Sipariş ID: {}, Email: {}, Hata: {}", 
+                        order.getId(), 
+                        order.getCustomer().getEmail(),
+                        e.getMessage(), e);
+            }
+        });
     }
 
     private String buildOrderStatusMessage(Order order) {
@@ -76,8 +91,7 @@ public class EmailService {
         message.append("Sipariş Detayları:\n");
         message.append("- Sipariş Numarası: ").append(order.getId()).append("\n");
         message.append("- Ürün Tipi: ").append(order.getProductType().getDisplayName()).append("\n");
-        message.append("- Kesim Tipi: ").append(order.getFitType().getDisplayName()).append("\n");
-        message.append("- Yeni Durum: ").append(order.getStatus().getDisplayName()).append("\n");
+        message.append("- Durum: ").append(order.getStatus().getDisplayName()).append("\n");
         
         if (order.getEstimatedDeliveryDate() != null) {
             message.append("- Tahmini Teslim Tarihi: ").append(order.getEstimatedDeliveryDate()).append("\n");
@@ -126,35 +140,47 @@ public class EmailService {
         return message.toString();
     }
 
-    public void sendWelcomeEmail(String email, String firstName, String lastName) {
-        if (email == null || email.trim().isEmpty()) {
-            return;
-        }
+    @Async("emailTaskExecutor")
+    public CompletableFuture<Void> sendWelcomeEmail(String email, String firstName, String lastName) {
+        return CompletableFuture.runAsync(() -> {
+            log.info("📧 Hoş geldin email'i gönderme işlemi başlatıldı: {} {}", firstName, lastName);
+            
+            // Email servisi devre dışı mı kontrol et
+            if (!emailEnabled) {
+                log.info("⚡ Email servisi devre dışı bırakıldı (development mode). Hoş geldin email'i gönderilmiyor: {} {}", firstName, lastName);
+                return;
+            }
+            
+            if (email == null || email.trim().isEmpty()) {
+                log.warn("⚠️ Email adresi boş, hoş geldin email'i gönderilmiyor: {} {}", firstName, lastName);
+                return;
+            }
 
-        try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setFrom(fromEmail);
-            message.setTo(email);
-            message.setSubject("Hoş Geldiniz - Erdal Güda Terzilik");
-            
-            StringBuilder messageText = new StringBuilder();
-            messageText.append("Sayın ").append(firstName).append(" ").append(lastName).append(",\n\n");
-            messageText.append("Erdal Güda Terzilik ailesine hoş geldiniz!\n\n");
-            messageText.append("Müşteri kaydınız başarıyla oluşturulmuştur. ");
-            messageText.append("Siparişlerinizin durumu hakkında email ile bilgilendirileceksiniz.\n\n");
-            messageText.append("Kaliteli hizmetimizle sizlere en iyi ürünleri sunmaya devam edeceğiz.\n\n");
-            messageText.append("İyi günler dileriz,\n");
-            messageText.append("Erdal Güda Terzilik\n");
-            messageText.append("Telefon: +90 555 555 55 55\n");
-            messageText.append("Email: info@erdalguda.com");
-            
-            message.setText(messageText.toString());
-            mailSender.send(message);
-            
-            log.info("Hoş geldin emaili gönderildi: {} {}, Email: {}", firstName, lastName, email);
-            
-        } catch (Exception e) {
-            log.error("Hoş geldin emaili gönderilirken hata: {}", e.getMessage());
-        }
+            try {
+                SimpleMailMessage message = new SimpleMailMessage();
+                message.setFrom(fromEmail);
+                message.setTo(email);
+                message.setSubject("Hoş Geldiniz - Erdal Güda Terzilik");
+                
+                StringBuilder messageText = new StringBuilder();
+                messageText.append("Sayın ").append(firstName).append(" ").append(lastName).append(",\n\n");
+                messageText.append("Erdal Güda Terzilik ailesine hoş geldiniz!\n\n");
+                messageText.append("Müşteri kaydınız başarıyla oluşturulmuştur. ");
+                messageText.append("Siparişlerinizin durumu hakkında email ile bilgilendirileceksiniz.\n\n");
+                messageText.append("Kaliteli hizmetimizle sizlere en iyi ürünleri sunmaya devam edeceğiz.\n\n");
+                messageText.append("İyi günler dileriz,\n");
+                messageText.append("Erdal Güda Terzilik\n");
+                messageText.append("Telefon: +90 555 555 55 55\n");
+                messageText.append("Email: info@erdalguda.com");
+                
+                message.setText(messageText.toString());
+                mailSender.send(message);
+                
+                log.info("✅ Hoş geldin emaili BAŞARIYLA gönderildi: {} {}, Email: {}", firstName, lastName, email);
+                
+            } catch (Exception e) {
+                log.error("❌ Hoş geldin emaili gönderilirken hata: {} {}, Email: {}, Hata: {}", firstName, lastName, email, e.getMessage());
+            }
+        });
     }
 } 

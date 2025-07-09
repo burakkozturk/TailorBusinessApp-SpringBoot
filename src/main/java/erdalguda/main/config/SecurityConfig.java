@@ -42,6 +42,7 @@ public class SecurityConfig {
                         // Genel erişim - login, test endpoint'leri
                         .requestMatchers("/auth/login", "/auth/register", "/auth/change-password").permitAll()
                         .requestMatchers("/api/test/**").permitAll()
+                        .requestMatchers("/api/upload/test").permitAll()
                         
                         // Sadece ADMIN erişimi
                         .requestMatchers("/auth/admin/**").hasRole("ADMIN")
@@ -54,11 +55,12 @@ public class SecurityConfig {
                         .requestMatchers("/api/usta/**").hasAnyRole("ADMIN", "USTA")
                         
                         // MUHASEBECI erişimi (ADMIN + USTA + MUHASEBECI)
-                        .requestMatchers("/api/customers/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")
-                        .requestMatchers("/api/orders/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")
-                        .requestMatchers("/api/measurements/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")
-                        .requestMatchers("/api/reports/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")
-                        .requestMatchers("/api/muhasebeci/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")
+                        .requestMatchers("/api/customers", "/api/customers/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")
+                        .requestMatchers("/api/orders", "/api/orders/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")
+                        .requestMatchers("/api/measurements", "/api/measurements/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")
+                        .requestMatchers("/api/reports", "/api/reports/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")
+                        .requestMatchers("/api/upload", "/api/upload/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")
+                        .requestMatchers("/api/muhasebeci", "/api/muhasebeci/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")
                         
                         // Genel ayarlar - tüm roller erişebilir
                         .requestMatchers("/api/settings/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")

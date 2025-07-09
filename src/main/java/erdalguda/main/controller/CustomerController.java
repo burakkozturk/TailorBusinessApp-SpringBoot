@@ -7,6 +7,7 @@ import erdalguda.main.repository.CustomerRepository;
 import erdalguda.main.repository.OrderRepository;
 import erdalguda.main.repository.MeasurementRepository;
 import erdalguda.main.service.EmailService;
+import erdalguda.main.service.CacheEvictionService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -26,28 +27,35 @@ public class CustomerController {
     private final OrderRepository orderRepo;
     private final MeasurementRepository measurementRepo;
     private final EmailService emailService;
+    private final CacheEvictionService cacheEvictionService;
 
     @Autowired
     public CustomerController(CustomerRepository customerRepo, OrderRepository orderRepo, 
-                            MeasurementRepository measurementRepo, EmailService emailService) {
+                            MeasurementRepository measurementRepo, EmailService emailService,
+                            CacheEvictionService cacheEvictionService) {
         this.customerRepo = customerRepo;
         this.orderRepo = orderRepo;
         this.measurementRepo = measurementRepo;
         this.emailService = emailService;
+        this.cacheEvictionService = cacheEvictionService;
     }
 
     @GetMapping
     public List<CustomerResponse> getAll() {
-        return customerRepo.findAll().stream()
+        return customerRepo.findAllWithMeasurements().stream()
                 .map(CustomerResponse::new)
                 .toList();
     }
 
     @PostMapping
+    @Transactional
     public Customer create(@RequestBody Customer customer) {
         Customer saved = customerRepo.save(customer);
         
-        // Hoş geldin email'i gönder
+        // Cache'leri temizle - yeni müşteri eklendi
+        cacheEvictionService.evictOnNewCustomer();
+        
+        // Email gönderimini async yapalım
         if (saved.getEmail() != null && !saved.getEmail().trim().isEmpty()) {
             emailService.sendWelcomeEmail(saved.getEmail(), saved.getFirstName(), saved.getLastName());
         }
@@ -57,7 +65,7 @@ public class CustomerController {
 
     @GetMapping("/{id}")
     public ResponseEntity<CustomerResponse> getById(@PathVariable Long id) {
-        return customerRepo.findById(id)
+        return customerRepo.findByIdWithMeasurements(id)
                 .map(CustomerResponse::new)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -75,22 +83,10 @@ public class CustomerController {
     public List<CustomerResponse> advancedSearch(
             @RequestParam(required = false) String firstName,
             @RequestParam(required = false) String lastName,
-            @RequestParam(required = false) String phone) {
+            @RequestParam(required = false) String phone,
+            @RequestParam(required = false) String email) {
 
-        List<Customer> result;
-        if (firstName != null && !firstName.isEmpty()) {
-            if (lastName != null && !lastName.isEmpty()) {
-                result = customerRepo.findByFirstNameContainingIgnoreCaseAndLastNameContainingIgnoreCase(firstName, lastName);
-            } else {
-                result = customerRepo.findByFirstNameContainingIgnoreCase(firstName);
-            }
-        } else if (lastName != null && !lastName.isEmpty()) {
-            result = customerRepo.findByLastNameContainingIgnoreCase(lastName);
-        } else if (phone != null && !phone.isEmpty()) {
-            result = customerRepo.findByPhoneContaining(phone);
-        } else {
-            result = customerRepo.findAll();
-        }
+        List<Customer> result = customerRepo.findByAdvancedSearch(firstName, lastName, phone, email);
 
         return result.stream()
                 .map(CustomerResponse::new)
@@ -102,7 +98,15 @@ public class CustomerController {
         return customerRepo.findAll(pageable);
     }
 
+    @GetMapping("/search-paginated")
+    public Page<Customer> searchCustomersPaginated(
+            @RequestParam String searchTerm, 
+            Pageable pageable) {
+        return customerRepo.findByFullNameContaining(searchTerm, pageable);
+    }
+
     @PatchMapping("/{id}")
+    @Transactional
     public ResponseEntity<Customer> partialUpdate(
             @PathVariable Long id,
             @RequestBody Map<String, Object> updates) {
@@ -114,6 +118,7 @@ public class CustomerController {
 
         Customer customer = optionalCustomer.get();
 
+        // Güvenli update işlemi
         if (updates.containsKey("firstName")) {
             customer.setFirstName((String) updates.get("firstName"));
         }
@@ -140,6 +145,7 @@ public class CustomerController {
     }
 
     @PutMapping("/{id}")
+    @Transactional
     public ResponseEntity<Customer> updateCustomer(@PathVariable Long id, @RequestBody Customer updated) {
         return customerRepo.findById(id)
                 .map(customer -> {
@@ -161,13 +167,52 @@ public class CustomerController {
         return ResponseEntity.ok(count);
     }
 
+    @GetMapping("/statistics")
+    public ResponseEntity<Map<String, Object>> getCustomerStatistics() {
+        long totalCustomers = customerRepo.getTotalCustomerCount();
+        long customersWithEmail = customerRepo.getCustomersWithEmailCount();
+        long customersWithMeasurements = customerRepo.getCustomersWithMeasurementsCount();
+        
+        return ResponseEntity.ok(Map.of(
+            "totalCustomers", totalCustomers,
+            "customersWithEmail", customersWithEmail,
+            "customersWithMeasurements", customersWithMeasurements,
+            "emailPercentage", totalCustomers > 0 ? (customersWithEmail * 100.0 / totalCustomers) : 0,
+            "measurementPercentage", totalCustomers > 0 ? (customersWithMeasurements * 100.0 / totalCustomers) : 0
+        ));
+    }
+
+    @GetMapping("/recent")
+    public ResponseEntity<List<Customer>> getRecentCustomers(@RequestParam(defaultValue = "10") int limit) {
+        List<Customer> recentCustomers = customerRepo.findRecentCustomers(limit);
+        return ResponseEntity.ok(recentCustomers);
+    }
+
+    @GetMapping("/without-orders")
+    public ResponseEntity<List<CustomerResponse>> getCustomersWithoutOrders() {
+        return ResponseEntity.ok(
+            customerRepo.findCustomersWithoutOrders()
+                .stream()
+                .map(CustomerResponse::new)
+                .toList()
+        );
+    }
+
+    @GetMapping("/high-value")
+    public ResponseEntity<List<Customer>> getHighValueCustomers(
+            @RequestParam(defaultValue = "1000") Double minSpent) {
+        return ResponseEntity.ok(customerRepo.findHighValueCustomers(minSpent));
+    }
+
     @DeleteMapping("/{id}")
     @Transactional
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         if (!customerRepo.existsById(id)) {
             return ResponseEntity.notFound().build();
         }
+        // Önce ilgili siparişleri sil
         orderRepo.deleteByCustomerId(id);
+        // Sonra müşteriyi sil
         customerRepo.deleteById(id);
         return ResponseEntity.noContent().build();
     }
@@ -179,8 +224,11 @@ public class CustomerController {
             if (!customerRepo.existsById(id)) {
                 return ResponseEntity.notFound().build();
             }
+            
+            // Transaction içinde tüm ilişkili verileri temizle
             orderRepo.deleteByCustomerId(id);
             customerRepo.deleteById(id);
+            
             return ResponseEntity.noContent().build();
         } catch (Exception e) {
             return ResponseEntity

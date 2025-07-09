@@ -7,6 +7,8 @@ import erdalguda.main.dto.ProductDistributionDto;
 import erdalguda.main.repository.CustomerRepository;
 import erdalguda.main.repository.OrderRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,6 +32,7 @@ public class DashboardController {
     }
 
     @GetMapping("/stats")
+    @Cacheable(value = "dashboard-stats", key = "'daily-stats-' + T(java.time.LocalDate).now().toString()")
     public ResponseEntity<DashboardStatsDto> getDashboardStats() {
         try {
             LocalDate today = LocalDate.now();
@@ -38,7 +41,7 @@ public class DashboardController {
             LocalDate startOfWeek = today.with(java.time.DayOfWeek.MONDAY);
             LocalDate endOfWeek = startOfWeek.plusDays(6);
             
-            // 1. Toplam müşteri sayısı (son 30 gün içinde eklenen müşterileri hesaplamak için customer creation date gerekir)
+            // 1. Toplam müşteri sayısı
             Long totalCustomers = customerRepo.count();
             
             // 2. Son 30 günde eklenen sipariş sayısı
@@ -90,6 +93,7 @@ public class DashboardController {
     }
     
     @GetMapping("/order-status-distribution")
+    @Cacheable(value = "order-status-distribution", key = "'status-dist-' + T(java.time.LocalDate).now().toString()")
     public ResponseEntity<List<OrderStatusDistributionDto>> getOrderStatusDistribution() {
         try {
             List<Object[]> results = orderRepo.getOrderStatusDistribution();
@@ -106,6 +110,7 @@ public class DashboardController {
     }
     
     @GetMapping("/monthly-trend")
+    @Cacheable(value = "monthly-trend", key = "'trend-' + T(java.time.LocalDate).now().toString()")
     public ResponseEntity<List<MonthlyTrendDto>> getMonthlyTrend() {
         try {
             LocalDate eightMonthsAgo = LocalDate.now().minusMonths(8);
@@ -125,6 +130,7 @@ public class DashboardController {
     }
     
     @GetMapping("/product-distribution")
+    @Cacheable(value = "product-distribution", key = "'product-dist-' + T(java.time.LocalDate).now().toString()")
     public ResponseEntity<List<ProductDistributionDto>> getProductDistribution() {
         try {
             List<Object[]> results = orderRepo.getProductTypeDistribution();
@@ -141,6 +147,7 @@ public class DashboardController {
     }
     
     @GetMapping("/recent-orders")
+    @Cacheable(value = "recent-orders", key = "'recent-' + T(java.time.LocalDate).now().toString() + '-' + T(java.time.LocalTime).now().getHour()")
     public ResponseEntity<List<Map<String, Object>>> getRecentOrders() {
         try {
             List<Object[]> results = orderRepo.getRecentOrders();
@@ -165,5 +172,31 @@ public class DashboardController {
             e.printStackTrace(); // Debug için hata yazdırıyoruz
             return ResponseEntity.internalServerError().build();
         }
+    }
+
+    // ===== CACHE MANAGEMENT ENDPOINTS =====
+
+    @PostMapping("/cache/clear-all")
+    @CacheEvict(value = {"dashboard-stats", "order-status-distribution", "monthly-trend", "product-distribution", "recent-orders"}, allEntries = true)
+    public ResponseEntity<Map<String, String>> clearAllCaches() {
+        return ResponseEntity.ok(Map.of("message", "Tüm cache'ler temizlendi"));
+    }
+
+    @PostMapping("/cache/clear/{cacheName}")
+    @CacheEvict(value = "#cacheName", allEntries = true)
+    public ResponseEntity<Map<String, String>> clearSpecificCache(@PathVariable String cacheName) {
+        return ResponseEntity.ok(Map.of("message", cacheName + " cache'i temizlendi"));
+    }
+
+    // ===== ADDITIONAL PERFORMANCE ENDPOINTS =====
+
+    @GetMapping("/performance/cache-status")
+    public ResponseEntity<Map<String, Object>> getCacheStatus() {
+        // Cache durumu hakkında bilgi verme
+        return ResponseEntity.ok(Map.of(
+            "cacheEnabled", true,
+            "activeCaches", List.of("dashboard-stats", "order-status-distribution", "monthly-trend", "product-distribution", "recent-orders"),
+            "lastCacheUpdate", LocalDateTime.now().toString()
+        ));
     }
 } 

@@ -15,6 +15,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.*;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.*;
+import org.springframework.http.HttpMethod;
 
 import java.util.Arrays;
 import java.util.List;
@@ -41,15 +42,22 @@ public class SecurityConfig {
                     auth
                         // Genel erişim - login, test endpoint'leri
                         .requestMatchers("/auth/login", "/auth/register", "/auth/change-password").permitAll()
+                        .requestMatchers("/auth/debug/**").permitAll() // Debug endpoint'leri
                         .requestMatchers("/api/test/**").permitAll()
                         .requestMatchers("/api/upload/test").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/messages").permitAll() // Contact form için mesaj gönderme
+                        
+                        // Blog ve Kategori - Public okuma, Admin yazma
+                        .requestMatchers("/api/blogs/published", "/api/blogs/latest", "/api/blogs/top/**").permitAll()
+                        .requestMatchers("/api/blogs/slug/**", "/api/blogs/category/**").permitAll()
+                        .requestMatchers("/api/categories", "/api/categories/slug/**").permitAll()
+                        .requestMatchers("/api/blogs/**").hasRole("ADMIN") // Blog yönetimi sadece admin
+                        .requestMatchers("/api/categories/**").hasRole("ADMIN") // Kategori yönetimi sadece admin
                         
                         // Sadece ADMIN erişimi
                         .requestMatchers("/auth/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/messages/**").hasRole("ADMIN")
-                        .requestMatchers("/api/blog/**").hasRole("ADMIN")
-                        .requestMatchers("/api/categories/**").hasRole("ADMIN")
+                        .requestMatchers("/api/messages/**").hasRole("ADMIN") // Mesaj yönetimi sadece admin
                         
                         // USTA erişimi (ADMIN + USTA)
                         .requestMatchers("/api/usta/**").hasAnyRole("ADMIN", "USTA")
@@ -61,6 +69,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/reports", "/api/reports/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")
                         .requestMatchers("/api/upload", "/api/upload/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")
                         .requestMatchers("/api/muhasebeci", "/api/muhasebeci/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")
+                        .requestMatchers("/api/dashboard", "/api/dashboard/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")
                         
                         // Genel ayarlar - tüm roller erişebilir
                         .requestMatchers("/api/settings/**").hasAnyRole("ADMIN", "USTA", "MUHASEBECI")
@@ -91,7 +100,9 @@ public class SecurityConfig {
         config.setAllowedOriginPatterns(Arrays.asList(
             "http://localhost:*", 
             "https://erdalguda.netlify.app",
-            "https://*.netlify.app"
+            "https://*.netlify.app",
+            "https://erdalguda.com",
+            "https://www.erdalguda.com"
         ));
         config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         config.setAllowedHeaders(Arrays.asList("*"));

@@ -39,44 +39,44 @@ public class EmailService {
                 log.info("⚡ Email servisi devre dışı bırakıldı (development mode). Email gönderilmiyor. Sipariş ID: {}", order.getId());
                 return;
             }
-            
-            if (order.getCustomer() == null) {
+        
+        if (order.getCustomer() == null) {
                 log.warn("⚠️ Sipariş müşteri bilgisi null. Sipariş ID: {}", order.getId());
-                return;
-            }
-            
-            if (order.getCustomer().getEmail() == null || order.getCustomer().getEmail().trim().isEmpty()) {
+            return;
+        }
+        
+        if (order.getCustomer().getEmail() == null || order.getCustomer().getEmail().trim().isEmpty()) {
                 log.info("⚠️ Müşteri email adresi bulunamadı, email gönderilmiyor. Sipariş ID: {}, Müşteri: {} {}", 
-                        order.getId(), 
-                        order.getCustomer().getFirstName(), 
-                        order.getCustomer().getLastName());
-                return;
-            }
+                    order.getId(), 
+                    order.getCustomer().getFirstName(), 
+                    order.getCustomer().getLastName());
+            return;
+        }
 
-            try {
+        try {
                 log.info("📤 Email gönderim parametreleri - From: {}, To: {}, Subject: Sipariş Durumu Güncellendi", 
-                        fromEmail, order.getCustomer().getEmail());
-                        
-                SimpleMailMessage message = new SimpleMailMessage();
-                message.setFrom(fromEmail);
-                message.setTo(order.getCustomer().getEmail());
-                message.setSubject("Sipariş Durumu Güncellendi - Erdal Güda Terzilik");
-                message.setText(buildOrderStatusMessage(order));
+                    fromEmail, order.getCustomer().getEmail());
+                    
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromEmail);
+            message.setTo(order.getCustomer().getEmail());
+            message.setSubject("Sipariş Durumu Güncellendi - Erdal Güda Terzilik");
+            message.setText(buildOrderStatusMessage(order));
 
                 log.info("📮 MailSender ile email gönderiliyor...");
-                mailSender.send(message);
-                
-                log.info("✅ Sipariş durum güncelleme emaili BAŞARIYLA gönderildi! Müşteri: {}, Email: {}, Durum: {}", 
-                        order.getCustomer().getFirstName() + " " + order.getCustomer().getLastName(),
-                        order.getCustomer().getEmail(),
-                        order.getStatus().getDisplayName());
-                        
-            } catch (Exception e) {
-                log.error("❌ Email gönderilirken hata oluştu. Sipariş ID: {}, Email: {}, Hata: {}", 
-                        order.getId(), 
-                        order.getCustomer().getEmail(),
-                        e.getMessage(), e);
-            }
+            mailSender.send(message);
+            
+            log.info("✅ Sipariş durum güncelleme emaili BAŞARIYLA gönderildi! Müşteri: {}, Email: {}, Durum: {}", 
+                    order.getCustomer().getFirstName() + " " + order.getCustomer().getLastName(),
+                    order.getCustomer().getEmail(),
+                    order.getStatus().getDisplayName());
+                    
+        } catch (Exception e) {
+            log.error("❌ Email gönderilirken hata oluştu. Sipariş ID: {}, Email: {}, Hata: {}", 
+                    order.getId(), 
+                    order.getCustomer().getEmail(),
+                    e.getMessage(), e);
+        }
         });
     }
 
@@ -151,36 +151,98 @@ public class EmailService {
                 return;
             }
             
-            if (email == null || email.trim().isEmpty()) {
+        if (email == null || email.trim().isEmpty()) {
                 log.warn("⚠️ Email adresi boş, hoş geldin email'i gönderilmiyor: {} {}", firstName, lastName);
+            return;
+        }
+
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromEmail);
+            message.setTo(email);
+            message.setSubject("Hoş Geldiniz - Erdal Güda Terzilik");
+            
+            StringBuilder messageText = new StringBuilder();
+            messageText.append("Sayın ").append(firstName).append(" ").append(lastName).append(",\n\n");
+            messageText.append("Erdal Güda Terzilik ailesine hoş geldiniz!\n\n");
+            messageText.append("Müşteri kaydınız başarıyla oluşturulmuştur. ");
+            messageText.append("Siparişlerinizin durumu hakkında email ile bilgilendirileceksiniz.\n\n");
+            messageText.append("Kaliteli hizmetimizle sizlere en iyi ürünleri sunmaya devam edeceğiz.\n\n");
+            messageText.append("İyi günler dileriz,\n");
+            messageText.append("Erdal Güda Terzilik\n");
+            messageText.append("Telefon: +90 555 555 55 55\n");
+            messageText.append("Email: info@erdalguda.com");
+            
+            message.setText(messageText.toString());
+            mailSender.send(message);
+            
+                log.info("✅ Hoş geldin emaili BAŞARIYLA gönderildi: {} {}, Email: {}", firstName, lastName, email);
+            
+        } catch (Exception e) {
+                log.error("❌ Hoş geldin emaili gönderilirken hata: {} {}, Email: {}, Hata: {}", firstName, lastName, email, e.getMessage());
+        }
+        });
+    }
+
+    @Async("emailTaskExecutor")
+    public CompletableFuture<Void> sendMessageReplyEmail(String recipientEmail, String recipientName, String subject, String messageContent, String adminName) {
+        return CompletableFuture.runAsync(() -> {
+            log.info("📧 Mesaj cevabı email'i gönderme işlemi başlatıldı. Alıcı: {}", recipientEmail);
+            
+            // Email servisi devre dışı mı kontrol et
+            if (!emailEnabled) {
+                log.info("⚡ Email servisi devre dışı bırakıldı (development mode). Email gönderilmiyor. Alıcı: {}", recipientEmail);
+                return;
+            }
+        
+            if (recipientEmail == null || recipientEmail.trim().isEmpty()) {
+                log.warn("⚠️ Alıcı email adresi boş veya null. Email gönderilmiyor.");
                 return;
             }
 
             try {
+                log.info("📤 Email gönderim parametreleri - From: {}, To: {}, Subject: {}", 
+                    fromEmail, recipientEmail, subject);
+                    
                 SimpleMailMessage message = new SimpleMailMessage();
                 message.setFrom(fromEmail);
-                message.setTo(email);
-                message.setSubject("Hoş Geldiniz - Erdal Güda Terzilik");
-                
-                StringBuilder messageText = new StringBuilder();
-                messageText.append("Sayın ").append(firstName).append(" ").append(lastName).append(",\n\n");
-                messageText.append("Erdal Güda Terzilik ailesine hoş geldiniz!\n\n");
-                messageText.append("Müşteri kaydınız başarıyla oluşturulmuştur. ");
-                messageText.append("Siparişlerinizin durumu hakkında email ile bilgilendirileceksiniz.\n\n");
-                messageText.append("Kaliteli hizmetimizle sizlere en iyi ürünleri sunmaya devam edeceğiz.\n\n");
-                messageText.append("İyi günler dileriz,\n");
-                messageText.append("Erdal Güda Terzilik\n");
-                messageText.append("Telefon: +90 555 555 55 55\n");
-                messageText.append("Email: info@erdalguda.com");
-                
-                message.setText(messageText.toString());
+                message.setTo(recipientEmail);
+                message.setSubject(subject);
+                message.setText(buildMessageReplyContent(recipientName, messageContent, adminName));
+
+                log.info("📮 MailSender ile email gönderiliyor...");
                 mailSender.send(message);
                 
-                log.info("✅ Hoş geldin emaili BAŞARIYLA gönderildi: {} {}, Email: {}", firstName, lastName, email);
-                
+                log.info("✅ Mesaj cevabı emaili BAŞARIYLA gönderildi! Alıcı: {}, Email: {}", 
+                        recipientName, recipientEmail);
+                        
             } catch (Exception e) {
-                log.error("❌ Hoş geldin emaili gönderilirken hata: {} {}, Email: {}, Hata: {}", firstName, lastName, email, e.getMessage());
+                log.error("❌ Email gönderilirken hata oluştu. Email: {}, Hata: {}", 
+                        recipientEmail, e.getMessage(), e);
             }
         });
+    }
+    
+    private String buildMessageReplyContent(String recipientName, String messageContent, String adminName) {
+        StringBuilder content = new StringBuilder();
+        
+        content.append("Sayın ").append(recipientName != null ? recipientName : "Değerli Müşterimiz").append(",\n\n");
+        
+        content.append("Erdal Güda Terzilik'ten gönderdiğiniz mesajınıza cevabımız:\n\n");
+        
+        content.append(messageContent).append("\n\n");
+        
+        content.append("---\n");
+        content.append("Bu mesaj Erdal Güda Terzilik admin panelinden ")
+               .append(adminName != null ? adminName : "yönetici")
+               .append(" tarafından gönderilmiştir.\n\n");
+        
+        content.append("Herhangi bir sorunuz varsa lütfen bizimle iletişime geçin.\n\n");
+        content.append("Saygılarımızla,\n");
+        content.append("Erdal Güda Terzilik\n");
+        content.append("📞 Telefon: [Telefon numaranız]\n");
+        content.append("📧 Email: ").append(fromEmail).append("\n");
+        
+        return content.toString();
     }
 } 

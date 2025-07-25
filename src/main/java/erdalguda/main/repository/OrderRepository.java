@@ -28,7 +28,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     List<Order> findByCustomerIdWithCustomer(@Param("customerId") Long customerId);
 
     // ===== BASIC QUERY METHODS =====
-    
+
     List<Order> findByCustomerId(Long customerId);
 
     @Query("SELECT o FROM Order o WHERE o.status = :status ORDER BY o.orderDate ASC")
@@ -79,10 +79,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     Page<Order> findByStatusWithCustomer(@Param("status") OrderStatus status, Pageable pageable);
 
     // ===== COUNT QUERIES FOR PERFORMANCE =====
-    
+
     @Query("SELECT COUNT(o) FROM Order o WHERE o.status = :status")
     Long countByStatus(@Param("status") OrderStatus status);
-
+    
     @Query("SELECT COUNT(o) FROM Order o WHERE o.orderDate >= :startDate AND o.orderDate <= :endDate")
     Long countOrdersByDateRange(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
 

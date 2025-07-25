@@ -34,7 +34,7 @@ import java.util.Map;
 public class OrderController {
 
     private static final Logger logger = LoggerFactory.getLogger(OrderController.class);
-    
+
     private final OrderRepository orderRepo;
     private final CustomerRepository customerRepo;
     private final EmailService emailService;
@@ -453,7 +453,7 @@ public class OrderController {
         Map<String, Object> collarTypes = new java.util.HashMap<>();
         for (Order.CollarType type : Order.CollarType.values()) {
             collarTypes.put(type.name(), type.getDisplayName());
-        }
+    }
         options.put("collarTypes", collarTypes);
 
         Map<String, Object> sleeveTypes = new java.util.HashMap<>();

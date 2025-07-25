@@ -31,6 +31,13 @@ public class Blog {
     @Column(nullable = false, unique = true)
     private String slug;
 
+    // YouTube video URL field
+    private String youtubeUrl;
+    
+    // SEO fields
+    private String metaDescription;
+    private String metaKeywords;
+
     private LocalDateTime createdAt = LocalDateTime.now();
     
     private LocalDateTime updatedAt;
@@ -49,4 +56,41 @@ public class Blog {
     public void preUpdate() {
         this.updatedAt = LocalDateTime.now();
     }
+    
+    // Manual getter/setter methods (Lombok not working)
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
+    
+    public String getContent() { return content; }
+    public void setContent(String content) { this.content = content; }
+    
+    public String getImageUrl() { return imageUrl; }
+    public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+    
+    public String getSlug() { return slug; }
+    public void setSlug(String slug) { this.slug = slug; }
+    
+    public String getYoutubeUrl() { return youtubeUrl; }
+    public void setYoutubeUrl(String youtubeUrl) { this.youtubeUrl = youtubeUrl; }
+    
+    public String getMetaDescription() { return metaDescription; }
+    public void setMetaDescription(String metaDescription) { this.metaDescription = metaDescription; }
+    
+    public String getMetaKeywords() { return metaKeywords; }
+    public void setMetaKeywords(String metaKeywords) { this.metaKeywords = metaKeywords; }
+    
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+    
+    public boolean isPublished() { return published; }
+    public void setPublished(boolean published) { this.published = published; }
+    
+    public Set<Category> getCategories() { return categories; }
+    public void setCategories(Set<Category> categories) { this.categories = categories; }
 } 

@@ -24,9 +24,7 @@ public class Customer {
     private Double weight; // kg
 
 
-    @OneToOne(mappedBy = "customer", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    @JsonInclude(JsonInclude.Include.NON_NULL) // Jackson varsa
-    private Measurement measurement;
+
 
     // Manual getter/setter methods (Lombok not working)
     public Long getId() { return id; }
@@ -53,6 +51,5 @@ public class Customer {
     public Double getWeight() { return weight; }
     public void setWeight(Double weight) { this.weight = weight; }
     
-    public Measurement getMeasurement() { return measurement; }
-    public void setMeasurement(Measurement measurement) { this.measurement = measurement; }
+
 }

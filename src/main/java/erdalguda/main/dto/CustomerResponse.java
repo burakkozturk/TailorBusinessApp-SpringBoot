@@ -2,7 +2,7 @@
 package erdalguda.main.dto;
 
 import erdalguda.main.model.Customer;
-import erdalguda.main.model.Measurement;
+
 import lombok.Getter;
 import lombok.Setter;
 
@@ -17,7 +17,7 @@ public class CustomerResponse {
     private String email;
     private Double height;
     private Double weight;
-    private MeasurementResponse measurement;
+
 
     public CustomerResponse(Customer c) {
         this.id = c.getId();
@@ -28,6 +28,6 @@ public class CustomerResponse {
         this.email = c.getEmail();
         this.height = c.getHeight();
         this.weight = c.getWeight();
-        this.measurement = c.getMeasurement() != null ? new MeasurementResponse(c.getMeasurement()) : null;
+
     }
 }

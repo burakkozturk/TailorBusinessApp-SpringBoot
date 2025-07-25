@@ -14,7 +14,7 @@ public class CustomerShortResponse {
     private String phone;
     private Double height;
     private Double weight;
-    private MeasurementResponse measurement;
+
 
     public CustomerShortResponse(Customer c) {
         this.id = c.getId();
@@ -24,6 +24,6 @@ public class CustomerShortResponse {
         this.phone = c.getPhone();
         this.height = c.getHeight();
         this.weight = c.getWeight();
-        this.measurement = c.getMeasurement() != null ? new MeasurementResponse(c.getMeasurement()) : null;
+
     }
 }

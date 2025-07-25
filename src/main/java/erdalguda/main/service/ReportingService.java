@@ -2,7 +2,7 @@ package erdalguda.main.service;
 
 import erdalguda.main.repository.OrderRepository;
 import erdalguda.main.repository.CustomerRepository;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -11,11 +11,16 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class ReportingService {
 
     private final OrderRepository orderRepository;
     private final CustomerRepository customerRepository;
+    
+    @Autowired
+    public ReportingService(OrderRepository orderRepository, CustomerRepository customerRepository) {
+        this.orderRepository = orderRepository;
+        this.customerRepository = customerRepository;
+    }
 
     /**
      * Aylık gelir raporu

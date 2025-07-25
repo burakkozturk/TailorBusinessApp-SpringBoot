@@ -14,11 +14,7 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
 
     // ===== OPTIMIZED FETCH METHODS =====
     
-    @Query("SELECT DISTINCT c FROM Customer c LEFT JOIN FETCH c.measurement")
-    List<Customer> findAllWithMeasurements();
 
-    @Query("SELECT DISTINCT c FROM Customer c LEFT JOIN FETCH c.measurement WHERE c.id = :id")
-    Optional<Customer> findByIdWithMeasurements(@Param("id") Long id);
 
     // ===== SEARCH METHODS WITH PERFORMANCE OPTIMIZATION =====
     
@@ -81,8 +77,7 @@ public interface CustomerRepository extends JpaRepository<Customer, Long> {
     @Query("SELECT COUNT(c) FROM Customer c WHERE c.email IS NOT NULL AND c.email != ''")
     Long getCustomersWithEmailCount();
 
-    @Query("SELECT COUNT(c) FROM Customer c WHERE c.measurement IS NOT NULL")
-    Long getCustomersWithMeasurementsCount();
+
 
     // ===== RECENT CUSTOMERS =====
     

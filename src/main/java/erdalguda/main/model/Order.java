@@ -71,7 +71,7 @@ public class Order {
     // === ANA ENUM'LAR ===
     public enum ProductType {
         CEKET("Ceket"),
-        GÖMLEK("Gömlek"), 
+        GÖMLEK("Gömlek"),
         PANTOLON("Pantolon"),
         TAKIM("Takım Elbise");
 

@@ -89,6 +89,9 @@ public class BlogController {
             blog.setContent(request.getContent());
             blog.setSlug(request.getSlug());
             blog.setImageUrl(request.getImageUrl());
+            blog.setYoutubeUrl(request.getYoutubeUrl());
+            blog.setMetaDescription(request.getMetaDescription());
+            blog.setMetaKeywords(request.getMetaKeywords());
             blog.setPublished(request.isPublished());
             blog.setCreatedAt(LocalDateTime.now());
 
@@ -108,6 +111,9 @@ public class BlogController {
             blogDetails.setContent(request.getContent());
             blogDetails.setSlug(request.getSlug());
             blogDetails.setImageUrl(request.getImageUrl());
+            blogDetails.setYoutubeUrl(request.getYoutubeUrl());
+            blogDetails.setMetaDescription(request.getMetaDescription());
+            blogDetails.setMetaKeywords(request.getMetaKeywords());
             blogDetails.setPublished(request.isPublished());
 
             Blog updatedBlog = blogService.updateBlog(id, blogDetails, request.getCategoryIds());
@@ -136,7 +142,30 @@ public class BlogController {
         private String content;
         private String slug;
         private String imageUrl;
+        private String youtubeUrl;
+        private String metaDescription;
+        private String metaKeywords;
         private boolean published;
         private Set<Long> categoryIds = new HashSet<>();
+        
+        // Manual getters/setters
+        public String getTitle() { return title; }
+        public void setTitle(String title) { this.title = title; }
+        public String getContent() { return content; }
+        public void setContent(String content) { this.content = content; }
+        public String getSlug() { return slug; }
+        public void setSlug(String slug) { this.slug = slug; }
+        public String getImageUrl() { return imageUrl; }
+        public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+        public String getYoutubeUrl() { return youtubeUrl; }
+        public void setYoutubeUrl(String youtubeUrl) { this.youtubeUrl = youtubeUrl; }
+        public String getMetaDescription() { return metaDescription; }
+        public void setMetaDescription(String metaDescription) { this.metaDescription = metaDescription; }
+        public String getMetaKeywords() { return metaKeywords; }
+        public void setMetaKeywords(String metaKeywords) { this.metaKeywords = metaKeywords; }
+        public boolean isPublished() { return published; }
+        public void setPublished(boolean published) { this.published = published; }
+        public Set<Long> getCategoryIds() { return categoryIds; }
+        public void setCategoryIds(Set<Long> categoryIds) { this.categoryIds = categoryIds; }
     }
 } 

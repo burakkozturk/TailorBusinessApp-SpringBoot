@@ -41,15 +41,19 @@ public class DashboardController {
             LocalDate startOfWeek = today.with(java.time.DayOfWeek.MONDAY);
             LocalDate endOfWeek = startOfWeek.plusDays(6);
             
+            // Mevcut ayın başlangıç ve bitiş tarihleri
+            LocalDate startOfCurrentMonth = today.withDayOfMonth(1);
+            LocalDate endOfCurrentMonth = today.with(TemporalAdjusters.lastDayOfMonth());
+            
             // 1. Toplam müşteri sayısı
             Long totalCustomers = customerRepo.count();
             
             // 2. Son 30 günde eklenen sipariş sayısı
             Long ordersLast30Days = orderRepo.countOrdersByDateRange(thirtyDaysAgo, today);
             
-            // 3. Son 1 aydaki ciro (sadece DELIVERED siparişlerden)
-            Double revenueLastMonth = orderRepo.sumRevenueByDateRange(oneMonthAgo, today);
-            if (revenueLastMonth == null) revenueLastMonth = 0.0;
+            // 3. BU AYDA teslim edilen siparişlerin toplam cirosu
+            Double revenueThisMonth = orderRepo.sumRevenueByDateRange(startOfCurrentMonth, endOfCurrentMonth);
+            if (revenueThisMonth == null) revenueThisMonth = 0.0;
             
             // 4. Prova bekleyen sipariş sayısı
             Long fittingOrders = orderRepo.countByStatus(erdalguda.main.model.Order.OrderStatus.FITTING);
@@ -68,17 +72,21 @@ public class DashboardController {
                 ordersGrowth = ((ordersLast30Days - ordersPrevious30Days) * 100.0) / ordersPrevious30Days;
             }
             
-            Double revenuePrevious30Days = orderRepo.sumRevenueByDateRange(sixtyDaysAgo, thirtyDaysAgo);
-            if (revenuePrevious30Days == null) revenuePrevious30Days = 0.0;
+            // Geçen ayın cirosu ile karşılaştırma
+            LocalDate startOfLastMonth = startOfCurrentMonth.minusMonths(1);
+            LocalDate endOfLastMonth = startOfCurrentMonth.minusDays(1);
+            Double revenueLastMonth = orderRepo.sumRevenueByDateRange(startOfLastMonth, endOfLastMonth);
+            if (revenueLastMonth == null) revenueLastMonth = 0.0;
+            
             Double revenueGrowth = 0.0;
-            if (revenuePrevious30Days > 0) {
-                revenueGrowth = ((revenueLastMonth - revenuePrevious30Days) * 100.0) / revenuePrevious30Days;
+            if (revenueLastMonth > 0) {
+                revenueGrowth = ((revenueThisMonth - revenueLastMonth) * 100.0) / revenueLastMonth;
             }
             
             DashboardStatsDto stats = new DashboardStatsDto();
             stats.setTotalCustomers(totalCustomers);
             stats.setOrdersLast30Days(ordersLast30Days);
-            stats.setRevenueLastMonth(revenueLastMonth);
+            stats.setRevenueLastMonth(revenueThisMonth); // Bu ayın cirosu
             stats.setFittingOrders(fittingOrders);
             stats.setCompletedLastMonth(completedLastMonth);
             stats.setDeliveriesThisWeek(deliveriesThisWeek);

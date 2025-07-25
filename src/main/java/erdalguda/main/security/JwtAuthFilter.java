@@ -1,6 +1,7 @@
 package erdalguda.main.security;
 
 import erdalguda.main.repository.AdminRepository;
+import erdalguda.main.repository.UserRepository;
 import erdalguda.main.service.JwtService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -23,12 +24,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final AdminRepository adminRepository;
+    private final UserRepository userRepository;
     private static final Logger logger = LoggerFactory.getLogger(JwtAuthFilter.class);
 
     @Autowired
-    public JwtAuthFilter(JwtService jwtService, AdminRepository adminRepository) {
+    public JwtAuthFilter(JwtService jwtService, AdminRepository adminRepository, UserRepository userRepository) {
         this.jwtService = jwtService;
         this.adminRepository = adminRepository;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -52,8 +55,29 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             logger.info("Token çözümlendi, kullanıcı: {}", username);
 
             if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                boolean userFound = false;
+                
+                // Önce admin tablosunda ara
                 var adminOpt = adminRepository.findById(username);
                 if (adminOpt.isPresent() && jwtService.isTokenValid(token, username)) {
+                    logger.info("Admin kullanıcısı bulundu: {}", username);
+                    userFound = true;
+                } else {
+                    // Admin bulunamazsa user tablosunda ara
+                    var userOpt = userRepository.findByUsername(username);
+                    if (userOpt.isPresent() && jwtService.isTokenValid(token, username)) {
+                        var user = userOpt.get();
+                        // User'ın onaylanmış ve aktif olup olmadığını kontrol et
+                        if (user.getIsApproved() && user.getIsActive()) {
+                            logger.info("Normal kullanıcı bulundu ve onaylanmış: {}", username);
+                            userFound = true;
+                        } else {
+                            logger.warn("Kullanıcı {} onaylanmamış veya aktif değil", username);
+                        }
+                    }
+                }
+                
+                if (userFound) {
                     // Rolü ve yetkileri tokendan çıkar
                     var authorities = jwtService.extractAuthorities(token);
                     

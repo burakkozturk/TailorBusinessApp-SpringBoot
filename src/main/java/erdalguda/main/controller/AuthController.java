@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.HashMap;
 
 @RestController
 @RequestMapping("/auth")
@@ -260,24 +261,80 @@ public class AuthController {
     // Şifre değiştirme
     @PostMapping("/change-password")
     public ResponseEntity<?> changePassword(@RequestBody ChangePasswordRequest request) {
-        Optional<Admin> adminOpt = adminRepo.findById(request.getUsername());
-        if (adminOpt.isEmpty()) {
+        try {
+            // Önce admin tablosunda ara
+            Optional<Admin> adminOpt = adminRepo.findById(request.getUsername());
+            if (adminOpt.isPresent()) {
+                Admin admin = adminOpt.get();
+                if (passwordEncoder.matches(request.getOldPassword(), admin.getPassword())) {
+                    admin.setPassword(passwordEncoder.encode(request.getNewPassword()));
+                    adminRepo.save(admin);
+                    logger.info("Admin kullanıcı {} şifresini değiştirdi", request.getUsername());
+                    return ResponseEntity.ok(Map.of("message", "Şifre başarıyla değiştirildi"));
+                } else {
+                    return ResponseEntity.badRequest().body("Mevcut şifre yanlış");
+                }
+            }
+
+            // Admin bulunamazsa user tablosunda ara
+            Optional<User> userOpt = userRepo.findByUsername(request.getUsername());
+            if (userOpt.isPresent()) {
+                User user = userOpt.get();
+                if (passwordEncoder.matches(request.getOldPassword(), user.getPassword())) {
+                    user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+                    userRepo.save(user);
+                    logger.info("Normal kullanıcı {} şifresini değiştirdi", request.getUsername());
+                    return ResponseEntity.ok(Map.of("message", "Şifre başarıyla değiştirildi"));
+                } else {
+                    return ResponseEntity.badRequest().body("Mevcut şifre yanlış");
+                }
+            }
+
             return ResponseEntity.badRequest().body("Kullanıcı bulunamadı");
+        } catch (Exception e) {
+            logger.error("Şifre değiştirme hatası: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body("Şifre değiştirme başarısız");
         }
+    }
+
+    // Debug endpoint - kullanıcının hangi tabloda olduğunu kontrol etmek için
+    @GetMapping("/debug/user-info/{username}")
+    public ResponseEntity<?> getUserInfo(@PathVariable String username) {
+        Map<String, Object> response = new HashMap<>();
         
-        Admin admin = adminOpt.get();
-        
-        // Mevcut şifreyi kontrol et
-        if (!passwordEncoder.matches(request.getCurrentPassword(), admin.getPassword())) {
-            return ResponseEntity.badRequest().body("Mevcut şifre yanlış");
+        // Admin tablosunda ara
+        Optional<Admin> adminOpt = adminRepo.findById(username);
+        if (adminOpt.isPresent()) {
+            Admin admin = adminOpt.get();
+            response.put("found", true);
+            response.put("table", "admin");
+            response.put("username", admin.getUsername());
+            response.put("role", admin.getRole().name());
+            response.put("isApproved", true);  // Admin tablosu always approved
+            response.put("isActive", true);    // Admin tablosu always active
+            return ResponseEntity.ok(response);
         }
-        
-        // Yeni şifreyi kaydet
-        admin.setPassword(passwordEncoder.encode(request.getNewPassword()));
-        adminRepo.save(admin);
-        
-        logger.info("Kullanıcı {} şifresini değiştirdi", request.getUsername());
-        return ResponseEntity.ok().build();
+
+        // User tablosunda ara
+        Optional<User> userOpt = userRepo.findByUsername(username);
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+            response.put("found", true);
+            response.put("table", "users");
+            response.put("username", user.getUsername());
+            response.put("role", user.getRole().name());
+            response.put("isApproved", user.getIsApproved());
+            response.put("isActive", user.getIsActive());
+            response.put("createdAt", user.getCreatedAt());
+            response.put("approvedBy", user.getApprovedBy());
+            response.put("approvedAt", user.getApprovedAt());
+            return ResponseEntity.ok(response);
+        }
+
+        response.put("found", false);
+        response.put("message", "Kullanıcı hiçbir tabloda bulunamadı");
+        return ResponseEntity.ok(response);
     }
     
     @GetMapping("/admin/test")
@@ -488,14 +545,14 @@ public class AuthController {
     @Getter @Setter
     static class ChangePasswordRequest {
         private String username;
-        private String currentPassword;
+        private String oldPassword; // Mevcut şifre
         private String newPassword;
         
         // Manual getters/setters
         public String getUsername() { return username; }
         public void setUsername(String username) { this.username = username; }
-        public String getCurrentPassword() { return currentPassword; }
-        public void setCurrentPassword(String currentPassword) { this.currentPassword = currentPassword; }
+        public String getOldPassword() { return oldPassword; }
+        public void setOldPassword(String oldPassword) { this.oldPassword = oldPassword; }
         public String getNewPassword() { return newPassword; }
         public void setNewPassword(String newPassword) { this.newPassword = newPassword; }
     }

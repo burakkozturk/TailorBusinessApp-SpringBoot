@@ -81,6 +81,18 @@ public class BlogService {
         if (blogDetails.getImageUrl() != null && !blogDetails.getImageUrl().isEmpty()) {
             blog.setImageUrl(blogDetails.getImageUrl());
         }
+        
+        if (blogDetails.getYoutubeUrl() != null) {
+            blog.setYoutubeUrl(blogDetails.getYoutubeUrl());
+        }
+        
+        if (blogDetails.getMetaDescription() != null) {
+            blog.setMetaDescription(blogDetails.getMetaDescription());
+        }
+        
+        if (blogDetails.getMetaKeywords() != null) {
+            blog.setMetaKeywords(blogDetails.getMetaKeywords());
+        }
 
         if (categoryIds != null) {
             Set<Category> categories = new HashSet<>();

@@ -1,6 +1,7 @@
 package erdalguda.main.service;
 
-import erdalguda.main.model.Admin.Role;
+import erdalguda.main.model.Admin;
+import erdalguda.main.model.User;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import org.slf4j.Logger;
@@ -26,12 +27,25 @@ public class JwtService {
         return Keys.hmacShaKeyFor(SECRET_KEY.getBytes());
     }
 
-    public String generateToken(String username, Role role) {
+    // Admin için token oluşturma
+    public String generateToken(String username, Admin.Role role) {
+        logger.info("'{}' admin kullanıcısı için '{}' rolüyle token oluşturuluyor", username, role);
+        return Jwts.builder()
+                .setSubject(username)
+                .setIssuedAt(new Date(System.currentTimeMillis()))
+                .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 24)) // 24 saat geçerli
+                .addClaims(Map.of("role", role.name()))
+                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    // User için token oluşturma
+    public String generateToken(String username, User.Role role) {
         logger.info("'{}' kullanıcısı için '{}' rolüyle token oluşturuluyor", username, role);
         return Jwts.builder()
                 .setSubject(username)
                 .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60)) // 1 saat geçerli
+                .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 24)) // 24 saat geçerli
                 .addClaims(Map.of("role", role.name()))
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
                 .compact();
@@ -49,13 +63,12 @@ public class JwtService {
         }
     }
     
-    public Role extractRole(String token) {
+    public String extractRole(String token) {
         try {
             String roleName = Jwts.parserBuilder().setSigningKey(getSigningKey()).build()
                 .parseClaimsJws(token).getBody().get("role", String.class);
-            Role role = Role.valueOf(roleName);
-            logger.debug("Token'dan rol çıkarıldı: {}", role);
-            return role;
+            logger.debug("Token'dan rol çıkarıldı: {}", roleName);
+            return roleName;
         } catch (Exception e) {
             logger.error("Rol çıkarılırken hata: {}", e.getMessage());
             return null;
@@ -64,8 +77,8 @@ public class JwtService {
     
     public List<SimpleGrantedAuthority> extractAuthorities(String token) {
         try {
-            Role role = extractRole(token);
-            if (role == null) {
+            String roleName = extractRole(token);
+            if (roleName == null) {
                 logger.warn("Token'dan rol çıkarılamadı, boş yetki listesi döndürülüyor");
                 return Collections.emptyList();
             }
@@ -73,16 +86,16 @@ public class JwtService {
             List<SimpleGrantedAuthority> authorities = new ArrayList<>();
             
             // Temel rol yetkisi
-            SimpleGrantedAuthority roleAuthority = new SimpleGrantedAuthority("ROLE_" + role.name());
+            SimpleGrantedAuthority roleAuthority = new SimpleGrantedAuthority("ROLE_" + roleName);
             authorities.add(roleAuthority);
             
             // Rol hiyerarşisi - ADMIN en üst seviye, tüm yetkilere sahip
-            if (role == Role.ADMIN) {
+            if ("ADMIN".equals(roleName)) {
                 authorities.add(new SimpleGrantedAuthority("ROLE_USTA"));
                 authorities.add(new SimpleGrantedAuthority("ROLE_MUHASEBECI"));
             }
             // USTA orta seviye, MUHASEBECI yetkilerine de sahip
-            else if (role == Role.USTA) {
+            else if ("USTA".equals(roleName)) {
                 authorities.add(new SimpleGrantedAuthority("ROLE_MUHASEBECI"));
             }
             // MUHASEBECI en alt seviye, sadece kendi yetkilerine sahip

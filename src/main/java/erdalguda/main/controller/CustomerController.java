@@ -2,10 +2,8 @@ package erdalguda.main.controller;
 
 import erdalguda.main.dto.CustomerResponse;
 import erdalguda.main.model.Customer;
-import erdalguda.main.model.Measurement;
 import erdalguda.main.repository.CustomerRepository;
 import erdalguda.main.repository.OrderRepository;
-import erdalguda.main.repository.MeasurementRepository;
 import erdalguda.main.service.EmailService;
 import erdalguda.main.service.CacheEvictionService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,24 +23,21 @@ public class CustomerController {
 
     private final CustomerRepository customerRepo;
     private final OrderRepository orderRepo;
-    private final MeasurementRepository measurementRepo;
     private final EmailService emailService;
     private final CacheEvictionService cacheEvictionService;
 
     @Autowired
-    public CustomerController(CustomerRepository customerRepo, OrderRepository orderRepo, 
-                            MeasurementRepository measurementRepo, EmailService emailService,
+    public CustomerController(CustomerRepository customerRepo, OrderRepository orderRepo, EmailService emailService,
                             CacheEvictionService cacheEvictionService) {
         this.customerRepo = customerRepo;
         this.orderRepo = orderRepo;
-        this.measurementRepo = measurementRepo;
         this.emailService = emailService;
         this.cacheEvictionService = cacheEvictionService;
     }
 
     @GetMapping
     public List<CustomerResponse> getAll() {
-        return customerRepo.findAllWithMeasurements().stream()
+        return customerRepo.findAll().stream()
                 .map(CustomerResponse::new)
                 .toList();
     }
@@ -65,7 +60,7 @@ public class CustomerController {
 
     @GetMapping("/{id}")
     public ResponseEntity<CustomerResponse> getById(@PathVariable Long id) {
-        return customerRepo.findByIdWithMeasurements(id)
+        return customerRepo.findById(id)
                 .map(CustomerResponse::new)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
@@ -171,14 +166,11 @@ public class CustomerController {
     public ResponseEntity<Map<String, Object>> getCustomerStatistics() {
         long totalCustomers = customerRepo.getTotalCustomerCount();
         long customersWithEmail = customerRepo.getCustomersWithEmailCount();
-        long customersWithMeasurements = customerRepo.getCustomersWithMeasurementsCount();
         
         return ResponseEntity.ok(Map.of(
             "totalCustomers", totalCustomers,
             "customersWithEmail", customersWithEmail,
-            "customersWithMeasurements", customersWithMeasurements,
-            "emailPercentage", totalCustomers > 0 ? (customersWithEmail * 100.0 / totalCustomers) : 0,
-            "measurementPercentage", totalCustomers > 0 ? (customersWithMeasurements * 100.0 / totalCustomers) : 0
+            "emailPercentage", totalCustomers > 0 ? (customersWithEmail * 100.0 / totalCustomers) : 0
         ));
     }
 
